@@ -1,0 +1,112 @@
+export const translations = {
+  en: {
+    heroTitle: "Predict the Next",
+    heroHighlight: "TW Market Giant",
+    heroDesc:
+      "Powered by advanced AI algorithms to identify 5-day growth stocks with high precision. Experience the next generation of stock tracking.",
+    startBtn: "Start Tracking Now",
+    marketOverview: "Market Overview",
+    lastUpdated: "Last updated",
+    refreshing: "Refreshing...",
+    searchPlaceholder: "Search stock code (e.g. 2330)...",
+    allAssets: "All Assets",
+    growthFilter: "🚀 Growth",
+    noStocks: "No stocks found matching the criteria.",
+    winRate: "Win Rate Confidence",
+    targetPrice: "Target Price",
+    stopLoss: "Stop Loss",
+    currentPrice: "Current Price",
+    aiLabel: "AI Suggestion",
+    buyReason: "AI Investment Thesis",
+    tradingPlan: "Tactical Execution Plan",
+    institutionalTitle: "Smart Money & Liquidity Tracker",
+    investors: "Institutional Net Position",
+    margin: "Leverage/Margin Balance",
+    dayTrade: "Intraday Turnover Intensity",
+    aggressive: "Aggressive Strategy",
+    conservative: "Conservative Strategy",
+    aggDesc:
+      "Higher risk/reward. Chasing momentum with tighter stop-loss and higher profit targets. Suitable for active traders.",
+    consDesc:
+      "Focus on safety. Entering at support levels with wider stop-loss to withstand volatility. Suitable for long-term holding.",
+    klineTitle: "Price Movement (K-Line)",
+    quoteLabel: "Live Market Quote",
+    confidenceLabel: "CONFIDENCE",
+    offlineMode: "Offline Mode - Using Cached Data",
+    mockDataWarning: "Warning: Using Mock/Cached Data - API Unavailable",
+    disclaimer:
+      "Our proprietary engine balances technical signals with institutional liquidity in real-time. Use these tactical plans as reference only.",
+    indicators: {
+      rsi: "RSI Index",
+      macd: "MACD Trend",
+      volume: "Trade Volume",
+    },
+    actions: {
+      strongBuy: "STRONG BUY",
+      hold: "HOLD",
+      neutral: "NEUTRAL",
+    },
+    reasons: {
+      strongBuy:
+        "Current asset shows strong bullish alignment. AI detected significant institutional inflow. EMA 20 is at a 45-degree upward slope, suggesting high breakout probability in 5 days.",
+      hold: "Price is consolidating. Although volatility is low, there is support at the bottom. Recommend holding and waiting for volume expansion.",
+      neutral:
+        "Indicators show market observation period. Low volume. AI suggests waiting for a clearer trend or looking for better patterns.",
+    },
+  },
+  zh: {
+    heroTitle: "預測下一支",
+    heroHighlight: "台股領航者",
+    heroDesc:
+      "運用先進 AI 演算法，精準鎖定 5 日成長潛力股。體驗次世代智慧股市追蹤系統。",
+    startBtn: "開始 Tracking",
+    marketOverview: "市場即時概況",
+    lastUpdated: "最新更新時間",
+    refreshing: "數據更新中...",
+    searchPlaceholder: "輸入代碼 (例: 2317)...",
+    allAssets: "全部標的",
+    growthFilter: "🚀 成長動能股",
+    noStocks: "查無符合條件的標的。",
+    winRate: "預測勝率置信度",
+    targetPrice: "預計獲利目標",
+    stopLoss: "戰略停損位",
+    currentPrice: "當前即時報價",
+    aiLabel: "AI 智能指標",
+    buyReason: "AI 投資專案評估",
+    tradingPlan: "戰術操作執行計畫",
+    institutionalTitle: "三大法人與籌碼看板",
+    investors: "三大法人買賣超數額",
+    margin: "融資融券籌碼餘額",
+    dayTrade: "日內當沖交易熱度",
+    aggressive: "積極型策略",
+    conservative: "保守型策略",
+    aggDesc:
+      "高風險高報酬。主動追逐動能突破，設定較緊湊的停損與更高的獲利目標。適合積極型交易者。",
+    consDesc:
+      "以資金安全為首要。分批布局於歷史支撐位，設定較寬的停損以規避市場雜訊。適合穩健配置者。",
+    klineTitle: "技術面走勢 (K線圖)",
+    quoteLabel: "市場單筆即時報價",
+    confidenceLabel: "模型運算置信度",
+    offlineMode: "離線模式 - 使用本機快取數據",
+    mockDataWarning: "警告：正在使用模擬/快取數據 - API 無法使用",
+    disclaimer:
+      "本 AI 引擎即時綜合技術信號與法人流動性進行評估，投資策略僅供參考，請謹慎控管風險。",
+    indicators: {
+      rsi: "RSI 相對強弱",
+      macd: "MACD 趨勢動能",
+      volume: "多空成交量能",
+    },
+    actions: {
+      strongBuy: "積極買進",
+      hold: "持續觀望",
+      neutral: "區間中性",
+    },
+    reasons: {
+      strongBuy:
+        "技術面呈現多頭排列，且 AI 偵測到法人大戶明顯布局。成交量穩定放大，暗示近期將有波段突破行情。",
+      hold: "股價處於基期整理階段，量能尚未爆發。建議暫時持有，觀察支撐區間的穩定度後再行加碼。",
+      neutral:
+        "目前趨勢不明，建議空手觀望。AI 指標顯示當前波動率較低，籌碼面尚待沈澱，不宜盲目進場。",
+    },
+  },
+};

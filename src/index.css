@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@theme {
+  --color-premium-bg: #0f172a;
+  --color-premium-card: #1e293b;
+  --color-premium-text: #f8fafc;
+  --color-premium-accent: #38bdf8;
+  --color-premium-success: #22c55e;
+  --color-premium-warning: #eab308;
+  --color-premium-loss: #ef4444;
+
+  --font-sans: Inter, sans-serif;
+}
+
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--color-premium-bg);
+    color: var(--color-premium-text);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom Scrollbar */
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 10px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(56, 189, 248, 0.3);
+    border-radius: 10px;
+    transition: background 0.2s ease;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(56, 189, 248, 0.5);
+  }
+}
+
+/* Gradient Flow Animation - disabled on mobile for performance */
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-flow {
+  animation: gradient-flow 3s ease infinite;
+  background-size: 200% 200%;
+}
+
+/* Disable animations on mobile for 60fps */
+@media (max-width: 640px) {
+  .animate-gradient-flow {
+    animation: none;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Reduce motion on mobile */
+  * {
+    animation-duration: 0.2s !important;
+    transition-duration: 0.15s !important;
+  }
+}
+
+/* Prevent layout shift */
+html {
+  scrollbar-gutter: stable;
+}
