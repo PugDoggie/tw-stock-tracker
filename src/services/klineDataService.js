@@ -24,20 +24,42 @@ export const fetchHistoricalOHLC = async (
  * Generate realistic OHLC candlestick data
  */
 export const generateRealisticOHLC = (stock, days = 30) => {
-  // Use stock price or fallback to base prices
+  // Comprehensive base prices for all supported Taiwan stocks
   const baseData = {
     2330: 890,
+    2454: 1585,
+    2303: 68,
+    3711: 62,
+    2408: 55,
+    6549: 42,
     2317: 165,
+    2412: 95,
+    2891: 28,
     2376: 108,
     2382: 85,
-    2454: 1585,
+    2356: 42,
+    2344: 48,
     2603: 25,
-    3711: 62,
-    2303: 68,
+    2618: 18,
+    1101: 72,
+    2498: 15,
+    2395: 68,
+    2880: 26,
+    2882: 35,
+    2201: 38,
+    1216: 95,
+    2301: 15,
+    2409: 18,
+    2436: 58,
+    1590: 165,
+    3034: 285,
+    2545: 68,
+    2615: 32,
   };
 
-  const stockId = stock?.id;
-  let basePrice = parseFloat(stock?.price) || baseData[stockId] || 100;
+  const stockId = stock?.id || stock;
+  let basePrice =
+    parseFloat(stock?.price) || parseFloat(baseData[stockId]) || 100;
 
   const data = [];
   const now = Date.now();
@@ -45,13 +67,12 @@ export const generateRealisticOHLC = (stock, days = 30) => {
   for (let i = days - 1; i >= 0; i--) {
     const time = Math.floor((now - i * 24 * 60 * 60 * 1000) / 1000);
 
-    // Generate OHLC with some realistic variance
-    const open = basePrice * (0.98 + Math.random() * 0.04);
-    const close =
-      basePrice * (0.97 + Math.random() * 0.06) +
-      (Math.random() > 0.5 ? 0.5 : -0.5);
-    const high = Math.max(open, close) * (1 + Math.random() * 0.02);
-    const low = Math.min(open, close) * (1 - Math.random() * 0.02);
+    // Generate OHLC with realistic variance
+    const volatility = 0.03 + Math.random() * 0.02; // 3-5% daily volatility
+    const open = basePrice * (1 - volatility / 2 + Math.random() * volatility);
+    const close = basePrice * (1 - volatility + Math.random() * volatility * 2);
+    const high = Math.max(open, close) * (1 + Math.random() * 0.015);
+    const low = Math.min(open, close) * (1 - Math.random() * 0.015);
 
     data.push({
       time,
@@ -61,7 +82,7 @@ export const generateRealisticOHLC = (stock, days = 30) => {
       close: parseFloat(close.toFixed(2)),
     });
 
-    // Update basePrice for next iteration for more realistic progression
+    // Update basePrice for next iteration for realistic progression
     basePrice = close;
   }
 

@@ -267,14 +267,45 @@ const generateFallbackData = (stockIds) => {
 
   // Generate realistic mock data based on stock IDs
   const baseData = [
+    // 半導體
     { id: "2330", name: "台積電", base: 890, change: 1.2 },
+    { id: "2454", name: "聯發科", base: 1585, change: 0.8 },
+    { id: "2303", name: "聯電", base: 68, change: 0.3 },
+    { id: "3711", name: "日月光投控", base: 62, change: 1.5 },
+    { id: "2408", name: "南茂", base: 55, change: 0.9 },
+    { id: "6549", name: "力積電", base: 42, change: 1.1 },
+    // 電子零件
     { id: "2317", name: "鴻海", base: 165, change: -0.5 },
+    { id: "2412", name: "中華電信", base: 95, change: -0.3 },
+    { id: "2891", name: "中信金", base: 28, change: 0.5 },
+    // 資訊硬體與設備
     { id: "2376", name: "技嘉", base: 108, change: 2.1 },
     { id: "2382", name: "廣達", base: 85, change: -1.3 },
-    { id: "2454", name: "聯發科", base: 1585, change: 0.8 },
+    { id: "2356", name: "英業達", base: 42, change: 0.7 },
+    { id: "2344", name: "華碩", base: 48, change: 1.5 },
+    // 航運
     { id: "2603", name: "長榮", base: 25, change: -2.5 },
-    { id: "3711", name: "日月光投控", base: 62, change: 1.5 },
-    { id: "2303", name: "聯電", base: 68, change: 0.3 },
+    { id: "2618", name: "長榮海運", base: 18, change: -1.8 },
+    // 能源與建材
+    { id: "1101", name: "台泥", base: 72, change: 0.2 },
+    // 消費電子
+    { id: "2498", name: "宏達電", base: 15, change: -0.2 },
+    { id: "2395", name: "友通", base: 68, change: 0.8 },
+    // 銀行與金融
+    { id: "2880", name: "華南金", base: 26, change: 0.4 },
+    { id: "2882", name: "國泰金", base: 35, change: 0.6 },
+    // 汽車與零售
+    { id: "2201", name: "裕隆", base: 38, change: -0.9 },
+    { id: "1216", name: "統一超", base: 95, change: 0.5 },
+    // 製造業
+    { id: "2301", name: "光磊", base: 15, change: 0.3 },
+    { id: "2409", name: "友達", base: 18, change: 0.6 },
+    { id: "2436", name: "偉詮電", base: 58, change: 0.4 },
+    // 其他
+    { id: "1590", name: "亞德客", base: 165, change: 1.2 },
+    { id: "3034", name: "聯詠", base: 285, change: 1.8 },
+    { id: "2545", name: "皇田", base: 68, change: 0.2 },
+    { id: "2615", name: "萬海", base: 32, change: -1.5 },
   ];
 
   return stockIds
