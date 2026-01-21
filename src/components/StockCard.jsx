@@ -1,19 +1,38 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { getAISuggestion } from "../services/aiAnalysis";
 import { useLanguage } from "../context/LanguageContext";
 import MiniKLineChart from "./MiniKLineChart";
-import { generateMockChartData } from "../utils/generateMockChartData";
+import { fetchHistoricalOHLC } from "../services/klineDataService";
 
 const StockCard = ({ stock, onClick }) => {
   const { t, lang } = useLanguage();
   const isUp = stock.change >= 0;
+  const [chartData, setChartData] = useState([]);
 
-  // Generate chart data for mini chart
-  const chartData = useMemo(
-    () => generateMockChartData(stock),
-    [stock.id, stock.price],
-  );
+  // Fetch real K-line data for mini chart
+  useEffect(() => {
+    if (!stock || !stock.id) return;
+
+    const fetchChartData = async () => {
+      try {
+        // Fetch 1 week of daily data for mini chart
+        const realData = await fetchHistoricalOHLC(stock.id, "1w", "1d");
+        if (realData && realData.length > 0) {
+          setChartData(realData);
+        } else {
+          setChartData([]);
+        }
+      } catch (err) {
+        console.warn(
+          `[StockCard] Chart data fetch failed for ${stock.id}: ${err.message}`,
+        );
+        setChartData([]);
+      }
+    };
+
+    fetchChartData();
+  }, [stock?.id]);
 
   // Memoize AI suggestion calculation
   const ai = useMemo(
@@ -46,12 +65,17 @@ const StockCard = ({ stock, onClick }) => {
       </div>
 
       {/* Data Source Indicator */}
-      {stock.isMockWarning && (
+      {stock.isFallback && (
+        <div className="absolute top-2 md:top-3 left-2 md:left-3 px-2 py-1 bg-yellow-500/20 border border-yellow-500/50 rounded text-[7px] md:text-[8px] font-bold text-yellow-300 uppercase tracking-wider">
+          ⚠️ Demo
+        </div>
+      )}
+      {stock.isMockWarning && !stock.isFallback && (
         <div className="absolute top-2 md:top-3 left-2 md:left-3 px-2 py-1 bg-red-500/20 border border-red-500/50 rounded text-[7px] md:text-[8px] font-bold text-red-300 uppercase tracking-wider">
           ⚠️ Mock
         </div>
       )}
-      {stock.isLive && !stock.isMockWarning && (
+      {stock.isLive && !stock.isMockWarning && !stock.isFallback && (
         <div className="absolute top-2 md:top-3 left-2 md:left-3 px-2 py-1 bg-green-500/20 border border-green-500/50 rounded text-[7px] md:text-[8px] font-bold text-green-300 uppercase tracking-wider">
           ✓ Live
         </div>

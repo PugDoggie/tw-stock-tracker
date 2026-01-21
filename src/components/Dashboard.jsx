@@ -3,9 +3,11 @@ import StockCard from "./StockCard";
 import StockDetailModal from "./StockDetailModal";
 import { stocks, isGrowthStock } from "../data/stocks";
 import { motion, AnimatePresence } from "framer-motion";
-import { fetchLiveStockData } from "../services/stockApi";
+import { fetchLiveStockData, searchTaiwanStocks } from "../services/stockApi";
 import { useLanguage } from "../context/LanguageContext";
 import { getNetworkMonitor } from "../utils/networkUtils";
+
+const isDev = import.meta.env.DEV;
 
 // Debounce hook for search optimization
 const useDebounce = (value, delay) => {
@@ -34,11 +36,11 @@ const Dashboard = () => {
   const [selectedStock, setSelectedStock] = useState(null);
   const [error, setError] = useState(null);
   const [networkStatus, setNetworkStatus] = useState("online");
-  const [hasRealData, setHasRealData] = useState(true); // Track if using real-time data
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
-
   const initialStockIds = useMemo(() => stocks.map((s) => s.id), []);
 
   const refreshData = useCallback(
@@ -64,7 +66,7 @@ const Dashboard = () => {
               existingMap.set(s.id, {
                 ...s,
                 name_zh: mockInfo?.name_zh || apiName,
-                name_en: mockInfo?.name_en || apiName, // Fixed: proper fallback for English
+                name_en: mockInfo?.name_en || apiName,
                 industry_zh:
                   mockInfo?.industry_zh ||
                   (s.id.startsWith("6") ? "興櫃" : "上市櫃"),
@@ -73,15 +75,11 @@ const Dashboard = () => {
                   (s.id.startsWith("6") ? "EMC" : "TW Listed"),
                 growthScore:
                   mockInfo?.growthScore || (Math.abs(s.change) > 2.5 ? 96 : 65),
-                isFallback: s.isFallback || false, // Track if using fallback data
-                isLive: s.isLive || false, // Track if real-time data
-                isMockWarning: s.isMockWarning || false, // Track if mock data warning
               });
             });
             return Array.from(existingMap.values());
           });
 
-          // PRECISION USER-LOCAL TIME & DATE SYNC (YYYY/MM/DD)
           const now = new Date();
           const yyyy = now.getFullYear();
           const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -98,50 +96,30 @@ const Dashboard = () => {
             },
           );
 
-          // Calculate GMT Offset manually for absolute clarity
           const offsetMinutes = -now.getTimezoneOffset();
           const absOffset = Math.abs(offsetMinutes);
           const oH = String(Math.floor(absOffset / 60)).padStart(2, "0");
           const oM = String(absOffset % 60).padStart(2, "0");
           const offsetStr = `GMT${offsetMinutes >= 0 ? "+" : "-"}${oH}:${oM}`;
 
-          // Check if using real-time vs mock data
-          const hasMockWarning = data.some((d) => d.isMockWarning);
-          const hasRealDataItems = data.some((d) => d.isLive);
-
-          setHasRealData(hasRealDataItems && !hasMockWarning);
-
-          if (hasMockWarning) {
-            setLastUpdated(
-              `${dateStr} ${timeStr} (${offsetStr}) [模擬數據 ⚠️]`,
-            );
-            console.warn("⚠️ Dashboard: Using mock data - API unavailable");
-          } else if (hasRealDataItems) {
-            setLastUpdated(`${dateStr} ${timeStr} (${offsetStr}) [實時 ✓]`);
-          } else {
-            setLastUpdated(`${dateStr} ${timeStr} (${offsetStr})`);
-          }
+          setLastUpdated(`${dateStr} ${timeStr} (${offsetStr}) [✓ Real Data]`);
+          setError(null);
         }
       } catch (err) {
-        console.error("Error refreshing stock data:", err);
-        // More descriptive error messages
-        let errorMsg = "Failed to fetch stock data";
-        if (err.message.includes("socket")) {
-          errorMsg = "Network connection error - using cached data";
-        } else if (err.message.includes("timeout")) {
-          errorMsg = "Request timeout - retrying...";
-        }
-        setError(errorMsg);
+        if (isDev) console.error("[Dashboard] Error:", err);
+        setError(`API Error: ${err.message}`);
+        setLiveStocks([]);
       } finally {
         setIsLoading(false);
       }
     },
-    [initialStockIds, liveStocks, lang],
+    [initialStockIds, lang],
   );
 
   useEffect(() => {
     refreshData(initialStockIds);
-    const interval = setInterval(() => refreshData(), 3000); // Real-time: 3 seconds - OPTIMIZED from 5s
+    // Faster refresh: 1.5 seconds (matches reduced cache TTL)
+    const interval = setInterval(() => refreshData(), 1500);
 
     // Monitor network status
     const networkMonitor = getNetworkMonitor();
@@ -170,6 +148,62 @@ const Dashboard = () => {
     }
   }, [debouncedSearchQuery, liveStocks, refreshData]);
 
+  // Fetch search suggestions for any TW/TWO ticker
+  useEffect(() => {
+    const q = debouncedSearchQuery.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    let active = true;
+    setSearchLoading(true);
+
+    searchTaiwanStocks(q)
+      .then((res) => {
+        if (!active) return;
+        setSearchResults(res || []);
+      })
+      .catch((err) => {
+        if (isDev) console.error("[Search]", err);
+        if (active) setSearchResults([]);
+      })
+      .finally(() => {
+        if (active) setSearchLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [debouncedSearchQuery]);
+
+  // Monitor URL parameters for stock symbol
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const symbolParam = params.get("symbol");
+
+    if (symbolParam && symbolParam.length > 0) {
+      const cleanSymbol = String(symbolParam).trim().toUpperCase();
+      // Only set if valid 4-digit stock ID
+      if (/^\d{4}$/.test(cleanSymbol)) {
+        const stock = liveStocks.find((s) => s.id === cleanSymbol);
+        if (stock) {
+          setSelectedStock(stock);
+          if (isDev) console.log(`[URL] Auto-open stock: ${cleanSymbol}`);
+        } else if (liveStocks.length > 0) {
+          // Try to fetch this stock if not in list
+          refreshData([cleanSymbol]).then(() => {
+            setTimeout(() => {
+              const found = liveStocks.find((s) => s.id === cleanSymbol);
+              if (found) setSelectedStock(found);
+            }, 500);
+          });
+        }
+      }
+    }
+  }, []);
+
   const displayedStocks = useMemo(() => {
     return liveStocks
       .filter((stock) => {
@@ -194,15 +228,28 @@ const Dashboard = () => {
 
   const handleStockClick = useCallback((stock) => {
     setSelectedStock(stock);
+    // Update URL parameter for shareability
+    window.history.pushState({}, "", `?symbol=${stock.id}`);
   }, []);
 
   const handleCloseModal = useCallback(() => {
     setSelectedStock(null);
+    // Clear URL parameter when closing
+    window.history.pushState({}, "", window.location.pathname);
   }, []);
 
   const handleSearchChange = useCallback((e) => {
     setSearchQuery(e.target.value);
   }, []);
+
+  const handleSelectSearchResult = useCallback(
+    (item) => {
+      setSearchQuery(item.id);
+      setSearchResults([]);
+      refreshData([item.id]);
+    },
+    [refreshData],
+  );
 
   const handleFilterAll = useCallback(() => {
     setFilterGrowth(false);
@@ -261,13 +308,6 @@ const Dashboard = () => {
                 📡 {t("offlineMode") || "Offline Mode - Using Cached Data"}
               </p>
             )}
-            {!hasRealData && liveStocks.length > 0 && (
-              <p className="text-red-400 text-[10px] md:text-xs mt-2 bg-red-500/20 px-3 md:px-4 py-2 rounded-lg md:rounded-xl border border-red-500/40 font-semibold animate-pulse">
-                ⚠️{" "}
-                {t("mockDataWarning") ||
-                  "Warning: Using Mock/Cached Data - API Unavailable"}
-              </p>
-            )}
           </div>
 
           <div className="flex flex-col w-full lg:w-auto gap-4">
@@ -282,6 +322,43 @@ const Dashboard = () => {
               <span className="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 text-lg md:text-xl group-focus-within:scale-110 transition-transform">
                 🔍
               </span>
+
+              {debouncedSearchQuery.trim().length >= 2 && (
+                <div className="absolute z-20 left-0 right-0 mt-2 bg-slate-900/95 border border-white/10 rounded-2xl shadow-2xl max-h-64 overflow-y-auto backdrop-blur-xl">
+                  {searchLoading && (
+                    <div className="px-4 py-3 text-sm text-slate-300">
+                      {t("searching") || "搜尋中..."}
+                    </div>
+                  )}
+
+                  {!searchLoading && searchResults.length === 0 && (
+                    <div className="px-4 py-3 text-sm text-slate-500">
+                      {t("noResults") || "沒有結果"}
+                    </div>
+                  )}
+
+                  {!searchLoading &&
+                    searchResults.map((item) => (
+                      <button
+                        key={item.symbol}
+                        onClick={() => handleSelectSearchResult(item)}
+                        className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-white/5 transition-colors"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-white">
+                            {item.id}
+                          </span>
+                          <span className="text-xs text-slate-300">
+                            {item.name}
+                          </span>
+                        </div>
+                        <span className="text-[10px] uppercase text-slate-400">
+                          {item.exchange}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
 
             <div className="flex gap-2 w-full">

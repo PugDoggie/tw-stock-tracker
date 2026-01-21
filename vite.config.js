@@ -1,24 +1,12 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react({ fastRefresh: true })],
   server: {
-    // HTTPS configuration for secure development
-    https:
-      process.env.VITE_HTTPS === "true"
-        ? {
-            // For production, use real certificates
-            // For development, Vite will auto-generate self-signed cert
-          }
-        : false,
-    host: true, // Allow external access
+    host: true,
     port: 5173,
-    // PROXY DISABLED - Using direct client-side fetch instead
-    // This avoids Vite proxy's socket hang up issues with TWSE
   },
-  // Build optimizations - IMPROVED PERFORMANCE
   build: {
     target: "ES2020",
     rollupOptions: {
@@ -38,7 +26,6 @@ export default defineConfig({
     reportCompressedSize: false,
     chunkSizeWarningLimit: 500,
   },
-  // Optimize dependencies
   optimizeDeps: {
     include: ["react", "react-dom", "lightweight-charts", "framer-motion"],
   },

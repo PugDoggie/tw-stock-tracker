@@ -1,13 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
-import {
-  fetchHistoricalOHLC,
-  generateRealisticOHLC,
-} from "../services/klineDataService";
+import { fetchHistoricalOHLC } from "../services/klineDataService";
 
 /**
  * Mini K-Line Chart Component for Stock Cards
- * Lightweight, compact chart showing price trend with real data
+ * Lightweight, compact chart showing price trend with real data only
  */
 const MiniKLineChart = ({ stock, data, isUp = true }) => {
   const chartContainerRef = useRef();
@@ -29,23 +26,22 @@ const MiniKLineChart = ({ stock, data, isUp = true }) => {
 
     const fetchData = async () => {
       try {
-        // Try to fetch real OHLC data
-        const realData = await fetchHistoricalOHLC(stock.id, "1w", "1d");
+        // Fetch real OHLC data only
+        const realData = await fetchHistoricalOHLC(stock.id, "1mo", "1d");
         if (realData && realData.length > 0) {
           setChartData(realData);
           console.log(
             `✅ Mini Chart: Got ${realData.length} real candles for ${stock.id}`,
           );
-          return;
-        }
-
-        // Generate realistic data
-        const generated = generateRealisticOHLC(stock, 7);
-        if (generated && generated.length > 0) {
-          setChartData(generated);
+        } else {
+          throw new Error("No real k-line data available");
         }
       } catch (err) {
-        console.warn(`Mini chart data fetch failed: ${err.message}`);
+        console.warn(
+          `[MiniKLineChart] Data fetch failed for ${stock?.id}: ${err.message}`,
+        );
+        setHasError(true);
+        setChartData([]);
       }
     };
 
@@ -80,6 +76,8 @@ const MiniKLineChart = ({ stock, data, isUp = true }) => {
           timeScale: {
             visible: false,
             borderVisible: false,
+            fixLeftEdge: true,
+            fixRightEdge: true,
           },
           rightPriceScale: {
             visible: false,
@@ -115,13 +113,26 @@ const MiniKLineChart = ({ stock, data, isUp = true }) => {
           priceLineVisible: false,
         });
 
-        // Validate and set data
-        const validData = chartData.filter(
-          (d) => d && d.time && (typeof d.value === "number" || d.close),
-        );
+        // Validate and set data - ensure all required fields are present
+        const validData = chartData.filter((d) => {
+          if (!d || !d.time) return false;
+          const value = d.value || d.close;
+          return typeof value === "number" && isFinite(value);
+        });
+
         if (validData.length > 0) {
-          series.setData(validData);
+          const formattedData = validData.map((d) => ({
+            time: d.time,
+            value: typeof d.value === "number" ? d.value : d.close,
+          }));
+          series.setData(formattedData);
           chart.timeScale().fitContent();
+        } else {
+          console.warn("[MiniKLineChart] No valid data after filtering");
+          setHasError(true);
+          chart.remove();
+          chartRef.current = null;
+          return;
         }
 
         const handleResize = () => {
@@ -136,6 +147,10 @@ const MiniKLineChart = ({ stock, data, isUp = true }) => {
         };
 
         window.addEventListener("resize", handleResize);
+
+        return () => {
+          window.removeEventListener("resize", handleResize);
+        };
       } catch (err) {
         console.error("MiniKLineChart Error:", err);
         setHasError(true);
@@ -146,7 +161,11 @@ const MiniKLineChart = ({ stock, data, isUp = true }) => {
       clearTimeout(timer);
       if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
       if (chartRef.current) {
-        chartRef.current.remove();
+        try {
+          chartRef.current.remove();
+        } catch (e) {
+          console.warn("Error removing mini chart:", e);
+        }
         chartRef.current = null;
       }
     };

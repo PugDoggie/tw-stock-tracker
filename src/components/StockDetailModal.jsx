@@ -3,43 +3,42 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getAISuggestion } from "../services/aiAnalysis";
 import { useLanguage } from "../context/LanguageContext";
 import KLineChart from "./KLineChart";
-import {
-  fetchHistoricalOHLC,
-  generateRealisticOHLC,
-} from "../services/klineDataService";
+import { fetchHistoricalOHLC } from "../services/klineDataService";
 
 const StockDetailModal = ({ stock, onClose }) => {
   const { t, lang } = useLanguage();
   const [chartType, setChartType] = useState("candlestick");
-
-  // Fetch real OHLC data for K-line chart
   const [klineData, setKlineData] = useState(null);
   const [isLoadingKline, setIsLoadingKline] = useState(false);
+  const [klineError, setKlineError] = useState(null);
 
+  // Fetch real OHLC data for K-line chart
   useEffect(() => {
     if (!stock || !stock.id) return;
 
     const fetchKlineData = async () => {
       setIsLoadingKline(true);
+      setKlineError(null);
+
       try {
-        // Try to fetch real OHLC data
         const realData = await fetchHistoricalOHLC(stock.id, "1mo", "1d");
         if (realData && realData.length > 0) {
           setKlineData(realData);
-          console.log(
-            `✅ Loaded ${realData.length} real OHLC candles for ${stock.id}`,
-          );
-          return;
+        } else {
+          throw new Error("No k-line data available from real API");
         }
-
-        // Fallback: generate realistic data
-        const generatedData = generateRealisticOHLC(stock, 30);
-        setKlineData(generatedData);
-        console.log(`Generated ${generatedData.length} realistic OHLC candles`);
       } catch (err) {
-        console.error(`Failed to load K-line data: ${err.message}`);
+        setKlineError(
+          `Failed to load K-line data: ${err.message}. Please try again.`,
+        );
+        setKlineData(null);
+
+        if (err.message.includes("fetch") || err.message.includes("timeout")) {
+          setTimeout(() => fetchKlineData(), 3000);
+        }
+      } finally {
+        setIsLoadingKline(false);
       }
-      setIsLoadingKline(false);
     };
 
     fetchKlineData();
@@ -167,12 +166,38 @@ const StockDetailModal = ({ stock, onClose }) => {
                     </div>
                   </div>
                   <div className="bg-slate-900/50 rounded-2xl md:rounded-[3rem] p-3 md:p-4 border border-white/5 shadow-inner h-[300px] md:h-[500px] lg:h-[600px]">
-                    <KLineChart
-                      stock={stock}
-                      data={klineData}
-                      height={500}
-                      chartType={chartType}
-                    />
+                    {isLoadingKline ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-700 border-t-premium-accent mx-auto mb-3"></div>
+                          <p className="text-slate-400 text-sm">
+                            {t("loading")}
+                          </p>
+                        </div>
+                      </div>
+                    ) : klineError ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <p className="text-red-400 text-sm mb-2">
+                            ⚠️ K-Line Data Error
+                          </p>
+                          <p className="text-slate-500 text-xs">{klineError}</p>
+                        </div>
+                      </div>
+                    ) : klineData && klineData.length > 0 ? (
+                      <KLineChart
+                        stock={stock}
+                        data={klineData}
+                        height={500}
+                        chartType={chartType}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <p className="text-slate-500 text-sm">
+                          No k-line data available
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
