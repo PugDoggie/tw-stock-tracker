@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import StockCard from "./StockCard";
 import StockDetailModal from "./StockDetailModal";
-import { stocks, isGrowthStock } from "../data/stocks";
+import { stocks, isGrowthStock, otcStocks } from "../data/stocks";
 import { motion, AnimatePresence } from "framer-motion";
 import { fetchLiveStockData, searchTaiwanStocks } from "../services/stockApi";
 import { useLanguage } from "../context/LanguageContext";
@@ -42,6 +42,7 @@ const Dashboard = () => {
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const initialStockIds = useMemo(() => stocks.map((s) => s.id), []);
+  const stockMeta = useMemo(() => [...stocks, ...otcStocks], []);
 
   const refreshData = useCallback(
     async (ids = null) => {
@@ -61,20 +62,20 @@ const Dashboard = () => {
           setLiveStocks((prev) => {
             const existingMap = new Map(prev.map((s) => [s.id, s]));
             data.forEach((s) => {
-              const mockInfo = stocks.find((m) => m.id === s.id);
+              const meta = stockMeta.find((m) => m.id === s.id);
               const apiName = s.name || s.id;
               existingMap.set(s.id, {
                 ...s,
-                name_zh: mockInfo?.name_zh || apiName,
-                name_en: mockInfo?.name_en || apiName,
+                name_zh: meta?.name_zh || apiName,
+                name_en: meta?.name_en || apiName,
                 industry_zh:
-                  mockInfo?.industry_zh ||
-                  (s.id.startsWith("6") ? "興櫃" : "上市櫃"),
+                  meta?.industry_zh ||
+                  (meta?.market === "TWO" ? "興櫃" : "上市櫃"),
                 industry_en:
-                  mockInfo?.industry_en ||
-                  (s.id.startsWith("6") ? "EMC" : "TW Listed"),
+                  meta?.industry_en ||
+                  (meta?.market === "TWO" ? "TWO" : "TW Listed"),
                 growthScore:
-                  mockInfo?.growthScore || (Math.abs(s.change) > 2.5 ? 96 : 65),
+                  meta?.growthScore || (Math.abs(s.change) > 2.5 ? 96 : 65),
               });
             });
             return Array.from(existingMap.values());
@@ -113,7 +114,7 @@ const Dashboard = () => {
         setIsLoading(false);
       }
     },
-    [initialStockIds, lang],
+    [initialStockIds, lang, stockMeta],
   );
 
   useEffect(() => {

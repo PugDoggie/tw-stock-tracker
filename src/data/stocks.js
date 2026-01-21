@@ -260,6 +260,61 @@ export const stocks = [
   },
 ];
 
+// 興櫃／櫃買重點標的（僅用於搜尋，不預設顯示在 Dashboard）
+export const otcStocks = [
+  {
+    id: "6223",
+    name_zh: "旺矽",
+    name_en: "Winstek",
+    industry_zh: "半導體測試",
+    industry_en: "Semiconductor Testing",
+    market: "TWO",
+  },
+  {
+    id: "4743",
+    name_zh: "合一",
+    name_en: "Oneness Biotech",
+    industry_zh: "生技醫療",
+    industry_en: "Biotech",
+    market: "TWO",
+  },
+  {
+    id: "3491",
+    name_zh: "昇達科",
+    name_en: "Wiwynn",
+    industry_zh: "通訊設備",
+    industry_en: "Communication Equipment",
+    market: "TWO",
+  },
+  {
+    id: "4107",
+    name_zh: "邦特",
+    name_en: "Bon Neng",
+    industry_zh: "生技醫療",
+    industry_en: "Biotech",
+    market: "TWO",
+  },
+  {
+    id: "8044",
+    name_zh: "網家",
+    name_en: "PChome Online",
+    industry_zh: "電商零售",
+    industry_en: "E-Commerce",
+    market: "TWO",
+  },
+  {
+    id: "6411",
+    name_zh: "晶焱",
+    name_en: "Alchip",
+    industry_zh: "IC 設計",
+    industry_en: "IC Design",
+    market: "TWO",
+  },
+];
+
+// 供搜尋使用的完整清單（上市＋興櫃）
+export const searchableStocks = [...stocks, ...otcStocks];
+
 export const isGrowthStock = (stock) => {
   const score = stock.growthScore || 0;
   const change = Math.abs(stock.change || 0);

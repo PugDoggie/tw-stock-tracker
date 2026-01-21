@@ -6,9 +6,17 @@
  * 3. Fallback mock data ONLY if both fail
  */
 
+import {
+  stocks,
+  isGrowthStock,
+  otcStocks,
+  searchableStocks,
+} from "../data/stocks";
+
 const isDev = import.meta.env.DEV;
 const requestCache = new Map();
 const CACHE_TTL = 1500; // 1.5 seconds cache for faster real-time updates
+const round2 = (n) => (Number.isFinite(n) ? Number(n.toFixed(2)) : 0);
 
 // API base for the local proxy server (avoid browser CORS)
 const API_BASE_URL =
@@ -129,10 +137,13 @@ const FALLBACK_STOCK_DATA = {
   },
 };
 
+const OTC_ID_SET = new Set([...(otcStocks || []).map((s) => s.id)]);
+
 // Determine correct Yahoo Finance suffix for TW/TWO tickers
 const getYahooSymbol = (id) => {
   const cleanId = String(id).trim();
-  const suffix = /^(6|8|9)/.test(cleanId) ? "TWO" : "TW";
+  const suffix =
+    OTC_ID_SET.has(cleanId) || /^(6|8|9)/.test(cleanId) ? "TWO" : "TW";
   return `${cleanId}.${suffix}`;
 };
 
@@ -277,29 +288,24 @@ const fetchFromYahooTaiwan = async (stockIds) => {
     ) {
       const results = data.quoteResponse.result.map((item) => {
         const stockId = item.symbol.replace(".TW", "").replace(".TWO", "");
-        const price = parseFloat(
-          item.regularMarketPrice || item.ask || item.bid || 0,
-        );
-        const previousClose = parseFloat(
-          item.regularMarketPreviousClose || price,
-        );
+        const rawPrice = item.regularMarketPrice || item.ask || item.bid || 0;
+        const price = round2(rawPrice);
+        const previousClose = round2(item.regularMarketPreviousClose || price);
         const change =
           previousClose > 0
-            ? parseFloat(
-                (((price - previousClose) / previousClose) * 100).toFixed(2),
-              )
+            ? round2(((price - previousClose) / previousClose) * 100)
             : 0;
 
         return {
           id: stockId,
           name: item.longName || item.shortName || stockId,
           symbol: item.symbol,
-          price: price,
-          change: change,
-          high: parseFloat(item.regularMarketDayHigh || price),
-          low: parseFloat(item.regularMarketDayLow || price),
+          price,
+          change,
+          high: round2(item.regularMarketDayHigh || price),
+          low: round2(item.regularMarketDayLow || price),
           volume: parseInt(item.regularMarketVolume || 0),
-          openPrice: parseFloat(item.regularMarketOpen || previousClose),
+          openPrice: round2(item.regularMarketOpen || previousClose),
           timestamp: Date.now(),
           isLive: true,
           sourceAPI: "Yahoo Finance",
@@ -413,11 +419,30 @@ const generateFallbackData = (stockIds) => {
 // Search TW/TWO stocks via Yahoo Finance search API
 export const searchTaiwanStocks = async (query) => {
   if (!query || query.trim().length < 2) return [];
+  const q = query.trim();
+  const qLower = q.toLowerCase();
+  const localMatches = (searchableStocks || [])
+    .filter((s) => {
+      return (
+        s.id.includes(q) ||
+        (s.name_zh && s.name_zh.includes(q)) ||
+        (s.name_en && s.name_en.toLowerCase().includes(qLower))
+      );
+    })
+    .map((s) => ({
+      id: s.id,
+      symbol: getYahooSymbol(s.id),
+      name: `${s.name_zh} / ${s.name_en}`,
+      exchange: s.market || "TSE",
+    }));
+
+  const merged = new Map();
+  localMatches.forEach((item) => merged.set(item.id, item));
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
-    const url = `${API_BASE_URL}/api/yahoo/search?q=${encodeURIComponent(query.trim())}`;
+    const url = `${API_BASE_URL}/api/yahoo/search?q=${encodeURIComponent(q)}`;
 
     const response = await fetch(url, {
       method: "GET",
@@ -437,19 +462,23 @@ export const searchTaiwanStocks = async (query) => {
 
     const data = await response.json();
     if (data?.results && Array.isArray(data.results)) {
-      return data.results.map((item) => ({
-        id: item.id,
-        symbol: item.symbol,
-        name: item.name,
-        exchange: item.exchange,
-      }));
+      data.results.forEach((item) => {
+        const id = item.id || item.symbol?.replace(/\.\w+$/, "");
+        if (!id) return;
+        if (merged.has(id)) return;
+        merged.set(id, {
+          id,
+          symbol: item.symbol || getYahooSymbol(id),
+          name: item.name,
+          exchange: item.exchange || item.market || "TSE",
+        });
+      });
     }
-
-    return [];
   } catch (error) {
     if (isDev) console.warn(`[Search] ${error.message}`);
-    return [];
   }
+
+  return Array.from(merged.values()).slice(0, 50);
 };
 
 /**
