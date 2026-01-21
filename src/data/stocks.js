@@ -1,4 +1,5 @@
 export const stocks = [
+  // 半導體產業
   {
     id: "2330",
     name_zh: "台積電",
@@ -8,13 +9,73 @@ export const stocks = [
     growthScore: 92,
   },
   {
+    id: "2454",
+    name_zh: "聯發科",
+    name_en: "MediaTek",
+    industry_zh: "半導體",
+    industry_en: "Semiconductor",
+    growthScore: 88,
+  },
+  {
+    id: "2303",
+    name_zh: "聯電",
+    name_en: "UMC",
+    industry_zh: "半導體",
+    industry_en: "Semiconductor",
+    growthScore: 81,
+  },
+  {
+    id: "3711",
+    name_zh: "日月光投控",
+    name_en: "ASE",
+    industry_zh: "半導體",
+    industry_en: "Semiconductor",
+    growthScore: 75,
+  },
+  {
+    id: "2408",
+    name_zh: "南茂",
+    name_en: "PSMC",
+    industry_zh: "半導體",
+    industry_en: "Semiconductor",
+    growthScore: 73,
+  },
+  {
+    id: "6549",
+    name_zh: "力積電",
+    name_en: "Powerchip",
+    industry_zh: "半導體",
+    industry_en: "Semiconductor",
+    growthScore: 68,
+  },
+
+  // 電子零件產業
+  {
     id: "2317",
     name_zh: "鴻海",
     name_en: "Foxconn",
     industry_zh: "電子零件",
-    industry_en: "Electronics",
+    industry_en: "Electronics Components",
     growthScore: 78,
   },
+  {
+    id: "2412",
+    name_zh: "中華電信",
+    name_en: "Chunghwa Telecom",
+    industry_zh: "電信",
+    industry_en: "Telecommunications",
+    growthScore: 62,
+  },
+  {
+    id: "2891",
+    name_zh: "中信金",
+    name_en: "CTBC Financial",
+    industry_zh: "金融",
+    industry_en: "Finance",
+    growthScore: 65,
+  },
+
+  // 資訊硬體與設備
   {
     id: "2376",
     name_zh: "技嘉",
@@ -32,13 +93,23 @@ export const stocks = [
     growthScore: 72,
   },
   {
-    id: "2454",
-    name_zh: "聯發科",
-    name_en: "MediaTek",
-    industry_zh: "半導體",
-    industry_en: "Semiconductor",
-    growthScore: 88,
+    id: "2356",
+    name_zh: "英業達",
+    name_en: "Inventec",
+    industry_zh: "資訊設備",
+    industry_en: "IT Equipment",
+    growthScore: 70,
   },
+  {
+    id: "2344",
+    name_zh: "華碩",
+    name_en: "ASUS",
+    industry_zh: "資訊硬體",
+    industry_en: "Computer Hardware",
+    growthScore: 74,
+  },
+
+  // 航運與物流
   {
     id: "2603",
     name_zh: "長榮",
@@ -48,20 +119,144 @@ export const stocks = [
     growthScore: 68,
   },
   {
-    id: "3711",
-    name_zh: "日月光投控",
-    name_en: "ASE",
-    industry_zh: "半導體",
-    industry_en: "Semiconductor",
-    growthScore: 75,
+    id: "2618",
+    name_zh: "長榮海運",
+    name_en: "Evergreen Marine",
+    industry_zh: "航運",
+    industry_en: "Shipping",
+    growthScore: 69,
+  },
+
+  // 電力與能源
+  {
+    id: "1101",
+    name_zh: "台泥",
+    name_en: "Taiwan Cement",
+    industry_zh: "水泥建材",
+    industry_en: "Cement & Materials",
+    growthScore: 58,
   },
   {
-    id: "2303",
-    name_zh: "聯電",
-    name_en: "UMC",
+    id: "2412",
+    name_zh: "中華電",
+    name_en: "CHT",
+    industry_zh: "電信",
+    industry_en: "Telecom",
+    growthScore: 62,
+  },
+
+  // 消費電子
+  {
+    id: "2498",
+    name_zh: "宏達電",
+    name_en: "HTC",
+    industry_zh: "消費電子",
+    industry_en: "Consumer Electronics",
+    growthScore: 66,
+  },
+  {
+    id: "2395",
+    name_zh: "友通",
+    name_en: "Unipac",
+    industry_zh: "資訊設備",
+    industry_en: "IT Equipment",
+    growthScore: 64,
+  },
+
+  // 銀行與金融
+  {
+    id: "2880",
+    name_zh: "華南金",
+    name_en: "Huanan Financial",
+    industry_zh: "銀行",
+    industry_en: "Banking",
+    growthScore: 60,
+  },
+  {
+    id: "2882",
+    name_zh: "國泰金",
+    name_en: "Cathay Financial",
+    industry_zh: "金融保險",
+    industry_en: "Finance & Insurance",
+    growthScore: 62,
+  },
+
+  // 貿易與零售
+  {
+    id: "2201",
+    name_zh: "裕隆",
+    name_en: "Yulon",
+    industry_zh: "汽車",
+    industry_en: "Automotive",
+    growthScore: 55,
+  },
+  {
+    id: "1216",
+    name_zh: "統一超",
+    name_en: "7-Eleven Taiwan",
+    industry_zh: "便利商店",
+    industry_en: "Convenience Store",
+    growthScore: 61,
+  },
+
+  // 製造業
+  {
+    id: "2301",
+    name_zh: "光磊",
+    name_en: "Lite-On",
+    industry_zh: "電子",
+    industry_en: "Electronics",
+    growthScore: 64,
+  },
+  {
+    id: "2409",
+    name_zh: "友達",
+    name_en: "AU Optronics",
+    industry_zh: "面板",
+    industry_en: "Display Panel",
+    growthScore: 67,
+  },
+  {
+    id: "2436",
+    name_zh: "偉詮電",
+    name_en: "Wyle Electronics",
+    industry_zh: "電子零件",
+    industry_en: "Electronics Components",
+    growthScore: 63,
+  },
+
+  // 其他重要個股
+  {
+    id: "1590",
+    name_zh: "亞德客",
+    name_en: "AIRTAC",
+    industry_zh: "氣動",
+    industry_en: "Pneumatics",
+    growthScore: 71,
+  },
+  {
+    id: "3034",
+    name_zh: "聯詠",
+    name_en: "Novatek",
     industry_zh: "半導體",
     industry_en: "Semiconductor",
-    growthScore: 81,
+    growthScore: 79,
+  },
+  {
+    id: "2545",
+    name_zh: "皇田",
+    name_en: "Hwang Ta",
+    industry_zh: "模具",
+    industry_en: "Mold & Die",
+    growthScore: 59,
+  },
+  {
+    id: "2615",
+    name_zh: "萬海",
+    name_en: "Wan Hai",
+    industry_zh: "航運",
+    industry_en: "Shipping",
+    growthScore: 70,
   },
 ];
 
