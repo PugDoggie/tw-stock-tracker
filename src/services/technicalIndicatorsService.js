@@ -111,20 +111,33 @@ const calculateIndicators = (ohlcData) => {
 const calculateRSI = (closes, period = 14) => {
   if (closes.length < period + 1) return 50;
 
-  let gains = 0,
-    losses = 0;
-  for (let i = 1; i <= period; i++) {
-    const diff =
-      closes[closes.length - period - 1 + i] -
-      closes[closes.length - period + i - 1];
-    if (diff > 0) gains += diff;
-    else losses += Math.abs(diff);
+  // Calculate initial gains and losses
+  let gains = 0;
+  let losses = 0;
+
+  for (let i = closes.length - period; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff > 0) {
+      gains += diff;
+    } else {
+      losses += Math.abs(diff);
+    }
   }
 
   const avgGain = gains / period;
   const avgLoss = losses / period;
-  const rs = avgGain / (avgLoss || 1);
-  return 100 - 100 / (1 + rs);
+
+  // Handle edge cases:
+  // - If all prices went up (losses = 0), RSI = 100
+  // - If all prices went down (gains = 0), RSI = 0
+  if (avgLoss === 0) {
+    return avgGain > 0 ? 100 : 50;
+  }
+
+  const rs = avgGain / avgLoss;
+  const rsi = 100 - 100 / (1 + rs);
+
+  return Math.max(0, Math.min(100, rsi)); // Ensure RSI is between 0-100
 };
 
 // MACD calculation
@@ -321,18 +334,18 @@ export const fetchTechnicalIndicators = async (
         throw new Error("No valid OHLC data after filtering");
       }
 
-      // Calculate indicators
+      // Calculate indicators using full historical data for accuracy
       const indicators = calculateIndicators(ohlcData);
 
       console.log(
-        `✅ [Technical] ${symbol}: RSI=${indicators.rsi}, MACD=${indicators.macd.trend}`,
+        `✅ [Technical] ${symbol}: RSI=${indicators.rsi}, MACD=${indicators.macd.trend}, Data points: ${ohlcData.length}`,
       );
 
       return {
         symbol,
         timestamp: new Date().toISOString(),
         indicators,
-        ohlcData: ohlcData.slice(-50), // Last 50 data points for charting
+        ohlcData: ohlcData.slice(-100), // Last 100 data points for charting
       };
     }
 

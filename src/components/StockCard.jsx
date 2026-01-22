@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { getAISuggestion } from "../services/aiAnalysis";
 import { useLanguage } from "../context/LanguageContext";
@@ -10,12 +10,45 @@ const StockCard = ({ stock, onClick }) => {
 
   // MiniKLineChart now handles its own data fetching
 
-  // Memoize AI suggestion calculation
-  const ai = useMemo(
-    () => getAISuggestion(stock, lang),
-    [stock.id, stock.price, stock.change, lang],
-  );
-  const isBuy = ai.action === t("actions.strongBuy");
+  // Use state for AI suggestion since it's now async
+  const [ai, setAi] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchAI = async () => {
+      try {
+        const suggestion = await getAISuggestion(stock, lang);
+        if (isMounted) {
+          setAi(suggestion);
+        }
+      } catch (err) {
+        console.error("AI suggestion error:", err);
+        // Fallback to basic suggestion with all required fields
+        if (isMounted) {
+          setAi({
+            action: t("actions.neutral"),
+            confidence: 50,
+            reason: "Analysis unavailable",
+            strategies: {
+              aggressive: {
+                targetPrice: (stock.price * 1.05).toFixed(2),
+                stopLoss: (stock.price * 0.95).toFixed(2),
+              },
+            },
+          });
+        }
+      }
+    };
+
+    fetchAI();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [stock.id, stock.price, stock.change, lang, t]);
+
+  const isBuy = ai ? ai.action === t("actions.strongBuy") : false;
 
   // Dynamic names based on language
   const stockName = lang === "zh" ? stock.name_zh : stock.name_en;
@@ -37,7 +70,7 @@ const StockCard = ({ stock, onClick }) => {
       <div
         className={`absolute -right-14 top-3 md:top-5 rotate-45 px-16 py-1.5 text-[9px] md:text-[10px] font-bold tracking-widest text-black opacity-95 ${isBuy ? "bg-premium-success" : "bg-slate-600"}`}
       >
-        {ai.action}
+        {ai ? ai.action : t("actions.neutral")}
       </div>
 
       {/* Data Source Indicator */}
@@ -105,40 +138,48 @@ const StockCard = ({ stock, onClick }) => {
         <TechnicalIndicatorsCard stock={stock} />
 
         {/* Statistics */}
-        <div className="text-[10px] md:text-[11px] space-y-4 md:space-y-5">
-          <div className="flex justify-between items-center text-slate-400">
-            <span className="font-medium">{t("winRate")}</span>
-            <span className="text-premium-accent font-bold text-sm md:text-base">
-              {ai.confidence}%
-            </span>
-          </div>
-          <div className="h-2.5 bg-slate-800/60 rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${ai.confidence}%` }}
-              className={`h-full ${isBuy ? "bg-premium-success" : "bg-premium-accent"}`}
-            />
-          </div>
+        {ai ? (
+          <div className="text-[10px] md:text-[11px] space-y-4 md:space-y-5">
+            <div className="flex justify-between items-center text-slate-400">
+              <span className="font-medium">{t("winRate")}</span>
+              <span className="text-premium-accent font-bold text-sm md:text-base">
+                {ai.confidence}%
+              </span>
+            </div>
+            <div className="h-2.5 bg-slate-800/60 rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${ai.confidence}%` }}
+                className={`h-full ${isBuy ? "bg-premium-success" : "bg-premium-accent"}`}
+              />
+            </div>
 
-          <div className="grid grid-cols-2 gap-4 md:gap-5 mt-5 md:mt-6">
-            <div className="p-3 md:p-4 bg-slate-900/60 rounded-xl md:rounded-2xl border border-white/8">
-              <p className="text-slate-500 text-[8px] md:text-[9px] mb-2 uppercase font-bold tracking-wider">
-                {t("targetPrice")}
-              </p>
-              <p className="text-premium-success font-black text-xs md:text-sm leading-tight">
-                NT${ai.strategies.aggressive.targetPrice}
-              </p>
-            </div>
-            <div className="p-3 md:p-4 bg-slate-900/60 rounded-xl md:rounded-2xl border border-white/8">
-              <p className="text-slate-500 text-[8px] md:text-[9px] mb-2 uppercase font-bold tracking-wider">
-                {t("stopLoss")}
-              </p>
-              <p className="text-premium-loss font-black text-xs md:text-sm leading-tight">
-                NT${ai.strategies.aggressive.stopLoss}
-              </p>
+            <div className="grid grid-cols-2 gap-4 md:gap-5 mt-5 md:mt-6">
+              <div className="p-3 md:p-4 bg-slate-900/60 rounded-xl md:rounded-2xl border border-white/8">
+                <p className="text-slate-500 text-[8px] md:text-[9px] mb-2 uppercase font-bold tracking-wider">
+                  {t("targetPrice")}
+                </p>
+                <p className="text-premium-success font-black text-xs md:text-sm leading-tight">
+                  NT${ai.strategies.aggressive.targetPrice}
+                </p>
+              </div>
+              <div className="p-3 md:p-4 bg-slate-900/60 rounded-xl md:rounded-2xl border border-white/8">
+                <p className="text-slate-500 text-[8px] md:text-[9px] mb-2 uppercase font-bold tracking-wider">
+                  {t("stopLoss")}
+                </p>
+                <p className="text-premium-loss font-black text-xs md:text-sm leading-tight">
+                  NT${ai.strategies.aggressive.stopLoss}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="text-[10px] md:text-[11px] space-y-4 md:space-y-5">
+            <div className="flex justify-center items-center text-slate-500 py-8">
+              <div className="animate-pulse">分析中...</div>
+            </div>
+          </div>
+        )}
       </div>
     </motion.div>
   );

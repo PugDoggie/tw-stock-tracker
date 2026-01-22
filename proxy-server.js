@@ -27,6 +27,7 @@ app.get("/", (req, res) => {
       "/api/yahoo/quote - Yahoo Finance Quote",
       "/api/yahoo/historical - Yahoo Finance Historical Data",
       "/api/yahoo/search - Yahoo Finance Search",
+      "/api/index/weights - Index Component Weights",
     ],
   });
 });
@@ -254,6 +255,109 @@ app.get("/api/yahoo/historical", async (req, res) => {
     res.status(404).json({ error: "No historical data found" });
   } catch (err) {
     console.error(`[Yahoo Historical Error] ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Index component weights endpoint
+// 获取加权指数成分股权重数据
+app.get("/api/index/weights", async (req, res) => {
+  try {
+    console.log("[Index Weights] Fetching component weights...");
+
+    // 方法1: 尝试从台湾证交所获取实时数据
+    // 证交所API: https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU
+    // 这个API提供每日收盘后的市值和权重数据
+
+    const twseUrl = `https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU?date=${new Date().toISOString().split("T")[0].replace(/-/g, "")}&response=json`;
+
+    try {
+      const response = await fetch(twseUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          Accept: "application/json",
+          Referer: "https://www.twse.com.tw/",
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // 解析证交所返回的数据格式
+        if (data && data.data && Array.isArray(data.data)) {
+          const weights = {};
+
+          data.data.forEach((row) => {
+            // row格式: [股票代码, 股票名称, 市值, 权重, ...]
+            const stockId = row[0]?.trim();
+            const weight = parseFloat(row[3]);
+
+            if (stockId && !isNaN(weight)) {
+              weights[stockId] = weight;
+            }
+          });
+
+          if (Object.keys(weights).length > 0) {
+            console.log(
+              `[Index Weights] Fetched ${Object.keys(weights).length} weights from TWSE`,
+            );
+            return res.json({
+              weights,
+              source: "TWSE",
+              lastUpdate: new Date().toISOString(),
+            });
+          }
+        }
+      }
+    } catch (twseError) {
+      console.warn("[Index Weights] TWSE fetch failed:", twseError.message);
+    }
+
+    // 方法2: Fallback到静态数据（基于2026年1月数据）
+    console.log("[Index Weights] Using fallback static data");
+
+    const fallbackWeights = {
+      2330: 31.5,
+      2454: 3.2,
+      2303: 1.8,
+      3711: 1.5,
+      3034: 2.3,
+      2408: 0.3,
+      6549: 0.4,
+      2317: 5.2,
+      2382: 2.1,
+      2376: 0.6,
+      2356: 0.8,
+      2344: 0.9,
+      2395: 0.3,
+      2436: 0.2,
+      2301: 0.5,
+      2882: 3.4,
+      2891: 1.2,
+      2880: 1.5,
+      2603: 2.8,
+      2618: 1.3,
+      2615: 1.2,
+      2412: 1.9,
+      2409: 0.9,
+      1590: 1.6,
+      1101: 0.7,
+      2201: 0.4,
+      1216: 1.1,
+      2498: 0.2,
+      1609: 0.3,
+      2545: 0.1,
+    };
+
+    res.json({
+      weights: fallbackWeights,
+      source: "fallback",
+      lastUpdate: new Date().toISOString(),
+      note: "Using static weights - TWSE data unavailable",
+    });
+  } catch (err) {
+    console.error("[Index Weights] Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

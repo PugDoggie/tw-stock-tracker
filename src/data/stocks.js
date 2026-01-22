@@ -7,6 +7,7 @@ export const stocks = [
     industry_zh: "半導體",
     industry_en: "Semiconductor",
     growthScore: 92,
+    indexWeight: 31.5, // 加權指數權重 (%)
   },
   {
     id: "2454",
@@ -15,6 +16,7 @@ export const stocks = [
     industry_zh: "半導體",
     industry_en: "Semiconductor",
     growthScore: 88,
+    indexWeight: 3.2,
   },
   {
     id: "2303",
@@ -23,6 +25,7 @@ export const stocks = [
     industry_zh: "半導體",
     industry_en: "Semiconductor",
     growthScore: 81,
+    indexWeight: 1.8,
   },
   {
     id: "3711",
@@ -31,6 +34,7 @@ export const stocks = [
     industry_zh: "半導體",
     industry_en: "Semiconductor",
     growthScore: 75,
+    indexWeight: 1.5,
   },
   {
     id: "2408",
@@ -39,6 +43,7 @@ export const stocks = [
     industry_zh: "半導體",
     industry_en: "Semiconductor",
     growthScore: 73,
+    indexWeight: 0.3,
   },
   {
     id: "6549",
@@ -47,6 +52,7 @@ export const stocks = [
     industry_zh: "半導體",
     industry_en: "Semiconductor",
     growthScore: 68,
+    indexWeight: 0.4,
   },
 
   // 電子零件產業
@@ -57,6 +63,7 @@ export const stocks = [
     industry_zh: "電子零件",
     industry_en: "Electronics Components",
     growthScore: 78,
+    indexWeight: 5.2,
   },
   {
     id: "2412",
@@ -65,6 +72,7 @@ export const stocks = [
     industry_zh: "電信",
     industry_en: "Telecommunications",
     growthScore: 62,
+    indexWeight: 1.9,
   },
   {
     id: "2891",
@@ -73,6 +81,7 @@ export const stocks = [
     industry_zh: "金融",
     industry_en: "Finance",
     growthScore: 65,
+    indexWeight: 1.2,
   },
 
   // 資訊硬體與設備
@@ -83,6 +92,7 @@ export const stocks = [
     industry_zh: "資訊硬體",
     industry_en: "Computer Hardware",
     growthScore: 85,
+    indexWeight: 0.6,
   },
   {
     id: "2382",
@@ -91,6 +101,7 @@ export const stocks = [
     industry_zh: "資訊設備",
     industry_en: "IT Equipment",
     growthScore: 72,
+    indexWeight: 2.1,
   },
   {
     id: "2356",
@@ -99,6 +110,7 @@ export const stocks = [
     industry_zh: "資訊設備",
     industry_en: "IT Equipment",
     growthScore: 70,
+    indexWeight: 0.8,
   },
   {
     id: "2344",
@@ -107,6 +119,7 @@ export const stocks = [
     industry_zh: "資訊硬體",
     industry_en: "Computer Hardware",
     growthScore: 74,
+    indexWeight: 0.9,
   },
 
   // 航運與物流
@@ -117,6 +130,7 @@ export const stocks = [
     industry_zh: "航運",
     industry_en: "Shipping",
     growthScore: 68,
+    indexWeight: 2.8,
   },
   {
     id: "2618",
@@ -125,6 +139,7 @@ export const stocks = [
     industry_zh: "航運",
     industry_en: "Shipping",
     growthScore: 69,
+    indexWeight: 1.3,
   },
 
   // 電力與能源
@@ -135,6 +150,7 @@ export const stocks = [
     industry_zh: "水泥建材",
     industry_en: "Cement & Materials",
     growthScore: 58,
+    indexWeight: 0.7,
   },
   {
     id: "2412",
@@ -143,6 +159,7 @@ export const stocks = [
     industry_zh: "電信",
     industry_en: "Telecom",
     growthScore: 62,
+    indexWeight: 1.9,
   },
 
   // 消費電子
@@ -153,6 +170,7 @@ export const stocks = [
     industry_zh: "消費電子",
     industry_en: "Consumer Electronics",
     growthScore: 66,
+    indexWeight: 0.2,
   },
   {
     id: "2395",
@@ -161,6 +179,7 @@ export const stocks = [
     industry_zh: "資訊設備",
     industry_en: "IT Equipment",
     growthScore: 64,
+    indexWeight: 0.3,
   },
 
   // 銀行與金融
@@ -171,6 +190,7 @@ export const stocks = [
     industry_zh: "銀行",
     industry_en: "Banking",
     growthScore: 60,
+    indexWeight: 1.5,
   },
   {
     id: "2882",
@@ -179,6 +199,7 @@ export const stocks = [
     industry_zh: "金融保險",
     industry_en: "Finance & Insurance",
     growthScore: 62,
+    indexWeight: 3.4,
   },
 
   // 貿易與零售
@@ -189,6 +210,7 @@ export const stocks = [
     industry_zh: "汽車",
     industry_en: "Automotive",
     growthScore: 55,
+    indexWeight: 0.4,
   },
   {
     id: "1216",
@@ -197,6 +219,7 @@ export const stocks = [
     industry_zh: "便利商店",
     industry_en: "Convenience Store",
     growthScore: 61,
+    indexWeight: 1.1,
   },
 
   // 製造業
@@ -207,6 +230,7 @@ export const stocks = [
     industry_zh: "電子",
     industry_en: "Electronics",
     growthScore: 64,
+    indexWeight: 0.5,
   },
   {
     id: "2409",
@@ -215,6 +239,7 @@ export const stocks = [
     industry_zh: "面板",
     industry_en: "Display Panel",
     growthScore: 67,
+    indexWeight: 0.9,
   },
   {
     id: "2436",
@@ -223,6 +248,7 @@ export const stocks = [
     industry_zh: "電子零件",
     industry_en: "Electronics Components",
     growthScore: 63,
+    indexWeight: 0.2,
   },
 
   // 其他重要個股
@@ -233,6 +259,7 @@ export const stocks = [
     industry_zh: "氣動",
     industry_en: "Pneumatics",
     growthScore: 71,
+    indexWeight: 1.6,
   },
   {
     id: "1609",
@@ -241,6 +268,7 @@ export const stocks = [
     industry_zh: "傳動",
     industry_en: "Power Transmission",
     growthScore: 62,
+    indexWeight: 0.3,
   },
   {
     id: "3034",
@@ -249,6 +277,7 @@ export const stocks = [
     industry_zh: "半導體",
     industry_en: "Semiconductor",
     growthScore: 79,
+    indexWeight: 2.3,
   },
   {
     id: "2545",
@@ -257,6 +286,7 @@ export const stocks = [
     industry_zh: "模具",
     industry_en: "Mold & Die",
     growthScore: 59,
+    indexWeight: 0.1,
   },
   {
     id: "2615",
@@ -265,6 +295,7 @@ export const stocks = [
     industry_zh: "航運",
     industry_en: "Shipping",
     growthScore: 70,
+    indexWeight: 1.2,
   },
 ];
 

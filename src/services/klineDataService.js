@@ -86,14 +86,15 @@ export const fetchHistoricalOHLC = async (
         throw new Error("No valid OHLC data after filtering");
       }
 
-      // Get last 15 days (12 business days + 3 recent)
-      const last15Days = ohlcData.slice(-15);
+      // Get last 100 days for comprehensive technical analysis
+      // This ensures RSI has enough historical data (needs at least 14+1 points)
+      const last100Days = ohlcData.slice(-100);
 
       console.log(
-        `✅ [K-Line] ${symbol}: Got ${last15Days.length} candles (from ${ohlcData.length} total)`,
+        `✅ [K-Line] ${symbol}: Got ${last100Days.length} candles (from ${ohlcData.length} total)`,
       );
 
-      return last15Days;
+      return last100Days;
     }
 
     throw new Error("Invalid response format - no quotes found");

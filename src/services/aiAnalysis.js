@@ -1,4 +1,5 @@
 import { translations } from "../data/translations";
+import { getStockWeight } from "./indexWeightService";
 
 /**
  * AI Technical & Institutional Analysis Engine (Professional Grade)
@@ -6,7 +7,7 @@ import { translations } from "../data/translations";
  * @param {string} lang - Language code ('en' or 'zh')
  * @param {object} indicators - Technical indicators data (optional)
  */
-export const getAISuggestion = (
+export const getAISuggestion = async (
   stock,
   lang = "zh",
   indicators = null,
@@ -26,6 +27,21 @@ export const getAISuggestion = (
 
   const marketIndex = marketContext?.index || null;
   const marketFutures = marketContext?.futures || null;
+
+  // 动态获取股票权重（优先使用动态数据，fallback到静态数据）
+  let stockWeight = stock.indexWeight || 0;
+  try {
+    const dynamicWeight = await getStockWeight(stock.id);
+    if (dynamicWeight > 0) {
+      stockWeight = dynamicWeight;
+    }
+  } catch (err) {
+    // 使用静态权重作为fallback
+    console.warn(
+      `[AI Analysis] Using static weight for ${stock.id}:`,
+      err.message,
+    );
+  }
 
   // Use actual technical indicators if provided, otherwise use mock data
   const rsi = indicators?.rsi
@@ -53,24 +69,51 @@ export const getAISuggestion = (
 
   const winRate = Math.min(95, 50 + alignedSignals * 15 + Math.abs(change) * 3);
 
-  // Market context influence (index & futures)
-  const calcMarketBias = () => {
+  // Market context influence (index & futures) with stock weight consideration
+  const calcMarketBias = (weight) => {
     let bias = 0;
+    let weightFactor = 1.0;
+
+    // High-weight stocks (>5%) have stronger correlation with index
+    // Low-weight stocks (<1%) are more independent
+    if (weight > 10) {
+      weightFactor = 1.8; // 台積電等權重股，與大盤高度連動
+    } else if (weight > 5) {
+      weightFactor = 1.5; // 中大型權值股
+    } else if (weight > 1) {
+      weightFactor = 1.2; // 一般權值股
+    } else {
+      weightFactor = 0.8; // 小型股，較獨立於大盤
+    }
 
     const applyAsset = (asset) => {
       if (!asset) return;
       const c = parseFloat(asset.change) || 0;
-      if (c > 0.6) bias += 1;
-      else if (c < -0.6) bias -= 1;
+
+      // 根據個股權重調整大盤影響力
+      if (c > 0.6) bias += 1 * weightFactor;
+      else if (c < -0.6) bias -= 1 * weightFactor;
+
+      // 個股與大盤同向放大信號，反向則減弱
+      if (weight > 1) {
+        const stockChange = parseFloat(stock.change) || 0;
+        if ((c > 0 && stockChange > 0) || (c < 0 && stockChange < 0)) {
+          // 同向：權值股帶動大盤或跟隨大盤
+          bias += 0.5;
+        } else if ((c > 0 && stockChange < -1) || (c < 0 && stockChange > 1)) {
+          // 反向且幅度大：可能是特殊因素，減弱大盤影響
+          bias -= 0.3;
+        }
+      }
     };
 
     applyAsset(marketIndex);
     applyAsset(marketFutures);
 
-    return Math.max(-2, Math.min(2, bias));
+    return Math.max(-3, Math.min(3, bias));
   };
 
-  const marketBias = calcMarketBias();
+  const marketBias = calcMarketBias(stockWeight);
   const adjustedWinRate = Math.max(40, Math.min(95, winRate + marketBias * 5));
 
   // Professional Indicators Simulation with data-driven adjustments
@@ -164,6 +207,21 @@ export const getAISuggestion = (
   let action = t.actions.neutral;
   let actionKey = "neutral";
 
+  // Get stock weight and index correlation
+  const indexChange = marketIndex ? parseFloat(marketIndex.change) || 0 : 0;
+  const stockChange = parseFloat(stock.change) || 0;
+
+  // Calculate index correlation bonus for high-weight stocks
+  let indexCorrelationBonus = 0;
+  if (stockWeight > 10 && Math.abs(indexChange) > 0.5) {
+    // 大盤強勢上漲且個股是權值股
+    if (indexChange > 1.0 && stockChange > 0) {
+      indexCorrelationBonus = 1; // 順勢而為
+    } else if (indexChange < -1.0 && stockChange < 0) {
+      indexCorrelationBonus = -1; // 大盤跌勢，謹慎
+    }
+  }
+
   // Determine action based on technical indicators alignment
   const bullishSignals =
     [
@@ -172,7 +230,9 @@ export const getAISuggestion = (
       macdTrend === "Bullish" && maTrend !== "Downtrend",
       maTrend === "Uptrend",
       stochasticStatus === "Oversold",
-    ].filter((s) => s).length + (marketBias > 0 ? 1 : 0);
+    ].filter((s) => s).length +
+    (marketBias > 0 ? 1 : 0) +
+    (indexCorrelationBonus > 0 ? 1 : 0);
 
   const bearishSignals =
     [
@@ -181,7 +241,9 @@ export const getAISuggestion = (
       macdTrend === "Bearish" && maTrend !== "Uptrend",
       maTrend === "Downtrend",
       stochasticStatus === "Overbought",
-    ].filter((s) => s).length + (marketBias < 0 ? 1 : 0);
+    ].filter((s) => s).length +
+    (marketBias < 0 ? 1 : 0) +
+    (indexCorrelationBonus < 0 ? 1 : 0);
 
   // Strong buy: Multiple bullish signals + positive price action
   if (
@@ -205,29 +267,65 @@ export const getAISuggestion = (
 
   const formatMarketNote = () => {
     const parts = [];
+    const stockWeight = stock.indexWeight || 0;
+
     if (marketIndex) {
       const c = parseFloat(marketIndex.change) || 0;
+      const weightInfo =
+        stockWeight > 5
+          ? lang === "zh"
+            ? `本股權重 ${stockWeight.toFixed(1)}%，對大盤影響顯著`
+            : `Stock weight ${stockWeight.toFixed(1)}%, significant index impact`
+          : stockWeight > 1
+            ? lang === "zh"
+              ? `本股權重 ${stockWeight.toFixed(1)}%`
+              : `Stock weight ${stockWeight.toFixed(1)}%`
+            : "";
+
       parts.push(
         lang === "zh"
-          ? `加權指數 ${c.toFixed(2)}% (${marketIndex.symbol || marketIndex.id})`
-          : `TAIEX ${c.toFixed(2)}% (${marketIndex.symbol || marketIndex.id})`,
+          ? `加權指數 ${c.toFixed(2)}%${weightInfo ? `，${weightInfo}` : ""}`
+          : `TAIEX ${c.toFixed(2)}%${weightInfo ? `, ${weightInfo}` : ""}`,
       );
+
+      // 分析個股與大盤的關聯性
+      if (stockWeight > 10) {
+        const stockChange = parseFloat(stock.change) || 0;
+        if (Math.abs(c) > 1 && Math.abs(stockChange) > 1) {
+          if ((c > 0 && stockChange > 0) || (c < 0 && stockChange < 0)) {
+            parts.push(
+              lang === "zh"
+                ? "個股與大盤同步，權值股帶動效應明顯"
+                : "Stock moves with index, weight-stock leadership effect",
+            );
+          } else {
+            parts.push(
+              lang === "zh"
+                ? "個股走勢背離大盤，可能有特殊題材"
+                : "Stock diverges from index, possible specific catalyst",
+            );
+          }
+        }
+      }
     }
     if (marketFutures) {
       const c = parseFloat(marketFutures.change) || 0;
       parts.push(
         lang === "zh"
-          ? `台指期 ${c.toFixed(2)}% (${marketFutures.symbol || marketFutures.id})`
-          : `TX futures ${c.toFixed(2)}% (${marketFutures.symbol || marketFutures.id})`,
+          ? `台指期 ${c.toFixed(2)}%`
+          : `TX futures ${c.toFixed(2)}%`,
       );
     }
     if (!parts.length) return "";
     return lang === "zh"
-      ? `市場風向：${parts.join("；")}。`
-      : `Market context: ${parts.join("; ")}.`;
+      ? `市場分析：${parts.join("；")}。`
+      : `Market analysis: ${parts.join("; ")}.`;
   };
 
   const reason = `${baseReason} ${formatMarketNote()}`.trim();
+
+  // 为 StockDetailModal 提供详细原因
+  const detailedReason = reason;
 
   // Enhanced strategy details with clear reasoning
   const getStrategyDetails = () => {
@@ -312,6 +410,7 @@ export const getAISuggestion = (
     action,
     confidence: adjustedWinRate,
     reason,
+    detailedReason,
     indicators: {
       rsi: rsi.toFixed(1),
       macd: macdTrend,

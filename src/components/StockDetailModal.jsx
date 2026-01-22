@@ -8,6 +8,7 @@ import TechnicalAnalysisDashboard from "./TechnicalAnalysisDashboard";
 const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
   const { t, lang } = useLanguage();
   const [technicalData, setTechnicalData] = useState(null);
+  const [ai, setAi] = useState(null);
 
   // Fetch technical indicators
   useEffect(() => {
@@ -27,6 +28,63 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
     fetchData();
   }, [stock?.id]);
 
+  // Fetch AI suggestion (now async)
+  useEffect(() => {
+    if (!stock) return;
+
+    let isMounted = true;
+
+    const fetchAI = async () => {
+      try {
+        const suggestion = await getAISuggestion(
+          stock,
+          lang,
+          technicalData,
+          marketContext,
+        );
+        if (isMounted) {
+          setAi(suggestion);
+        }
+      } catch (err) {
+        console.error("Error fetching AI suggestion:", err);
+        if (isMounted) {
+          setAi({
+            action: t("actions.neutral"),
+            confidence: 50,
+            reason: "Analysis unavailable",
+            detailedReason: "AI analysis failed. Please try again.",
+            indicators: {},
+            institutional: {
+              investors: "N/A",
+              margin: "N/A",
+              dayTrade: "N/A",
+            },
+            strategies: {
+              aggressive: {
+                type: "N/A",
+                desc: "N/A",
+                targetPrice: (stock.price * 1.05).toFixed(2),
+                stopLoss: (stock.price * 0.95).toFixed(2),
+              },
+              conservative: {
+                type: "N/A",
+                desc: "N/A",
+                targetPrice: (stock.price * 1.03).toFixed(2),
+                stopLoss: (stock.price * 0.97).toFixed(2),
+              },
+            },
+          });
+        }
+      }
+    };
+
+    fetchAI();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [stock, lang, technicalData, marketContext, t]);
+
   // Lock body scroll when modal is open
   useEffect(() => {
     if (stock) {
@@ -36,12 +94,6 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
       };
     }
   }, [stock]);
-
-  // Memoize AI suggestion with technical indicators
-  const ai = useMemo(() => {
-    if (!stock) return null;
-    return getAISuggestion(stock, lang, technicalData, marketContext);
-  }, [stock, lang, technicalData, marketContext]);
 
   if (!stock) return null;
 
@@ -121,197 +173,206 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto p-7 md:p-12 lg:p-16 custom-scrollbar space-y-12 md:space-y-20">
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-12 md:gap-16 lg:gap-20">
-              {/* Left (Chart & Analysis) */}
-              <div className="xl:col-span-8 space-y-10 md:space-y-16">
-                <div className="space-y-7 md:space-y-10">
-                  <div className="flex items-center gap-4">
-                    <h4 className="text-white text-[11px] md:text-xs font-black tracking-[0.2em] md:tracking-[0.3em] uppercase flex items-center gap-3 md:gap-4">
-                      <span className="relative flex h-2.5 md:h-3 w-2.5 md:w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-premium-accent opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 md:h-3 w-2.5 md:w-3 bg-premium-accent"></span>
-                      </span>
-                      {t("technical") || "Technical Analysis"}
-                    </h4>
-                  </div>
-                  <div className="bg-slate-900/60 rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 border border-white/8 shadow-inner w-full overflow-hidden">
-                    <TechnicalAnalysisDashboard stock={stock} height={600} />
-                  </div>
+            {!ai ? (
+              <div className="flex items-center justify-center min-h-[400px]">
+                <div className="text-center space-y-4">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-premium-accent mx-auto"></div>
+                  <p className="text-slate-400 text-lg">AI分析中...</p>
                 </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-12 md:gap-16 lg:gap-20">
+                {/* Left (Chart & Analysis) */}
+                <div className="xl:col-span-8 space-y-10 md:space-y-16">
+                  <div className="space-y-7 md:space-y-10">
+                    <div className="flex items-center gap-4">
+                      <h4 className="text-white text-[11px] md:text-xs font-black tracking-[0.2em] md:tracking-[0.3em] uppercase flex items-center gap-3 md:gap-4">
+                        <span className="relative flex h-2.5 md:h-3 w-2.5 md:w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-premium-accent opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 md:h-3 w-2.5 md:w-3 bg-premium-accent"></span>
+                        </span>
+                        {t("technical") || "Technical Analysis"}
+                      </h4>
+                    </div>
+                    <div className="bg-slate-900/60 rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 border border-white/8 shadow-inner w-full overflow-hidden">
+                      <TechnicalAnalysisDashboard stock={stock} height={600} />
+                    </div>
+                  </div>
 
-                {/* Institutional Panel */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-7 md:gap-10 lg:gap-12">
-                  <div className="p-6 md:p-8 lg:p-10 bg-gradient-to-br from-white/8 to-transparent rounded-2xl md:rounded-3xl border border-white/10 group hover:border-premium-accent/50 transition-all shadow-2xl">
-                    <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-5 md:mb-7 flex items-center gap-3">
-                      🏢 {t("investors")}
-                    </p>
-                    <p
-                      className={`text-2xl md:text-3xl lg:text-4xl font-mono font-black leading-tight ${ai.institutional.investors.startsWith("+") ? "text-premium-success" : "text-premium-loss"}`}
-                    >
-                      {ai.institutional.investors}
-                    </p>
-                  </div>
-                  <div className="p-6 md:p-8 lg:p-10 bg-gradient-to-br from-white/8 to-transparent rounded-2xl md:rounded-3xl border border-white/10 group hover:border-premium-accent/50 transition-all shadow-2xl">
-                    <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-5 md:mb-7 flex items-center gap-3">
-                      📊 {t("margin")}
-                    </p>
-                    <p className="text-2xl md:text-3xl lg:text-4xl font-mono font-black text-premium-accent leading-tight">
-                      {ai.institutional.margin}
-                    </p>
-                  </div>
-                  <div className="p-6 md:p-8 lg:p-10 bg-gradient-to-br from-white/8 to-transparent rounded-2xl md:rounded-3xl border border-white/10 group hover:border-premium-accent/50 transition-all shadow-2xl">
-                    <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-5 md:mb-7 flex items-center gap-3">
-                      ⚡ {t("dayTrade")}
-                    </p>
-                    <p className="text-2xl md:text-3xl lg:text-4xl font-mono font-black text-premium-warning leading-tight">
-                      {ai.institutional.dayTrade}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-7 md:p-12 bg-gradient-to-br from-slate-800/70 to-slate-900/50 text-white rounded-2xl md:rounded-3xl border border-white/12 space-y-8 md:space-y-10 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-1.5 h-full bg-premium-accent group-hover:w-2 transition-all"></div>
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 md:gap-8">
-                    <h4 className="text-premium-accent font-black text-xs md:text-sm uppercase tracking-[0.15em] md:tracking-[0.2em] flex items-center gap-3 md:gap-4 leading-tight">
-                      <svg
-                        className="w-5 md:w-6 h-5 md:h-6"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
+                  {/* Institutional Panel */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-7 md:gap-10 lg:gap-12">
+                    <div className="p-6 md:p-8 lg:p-10 bg-gradient-to-br from-white/8 to-transparent rounded-2xl md:rounded-3xl border border-white/10 group hover:border-premium-accent/50 transition-all shadow-2xl">
+                      <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-5 md:mb-7 flex items-center gap-3">
+                        🏢 {t("investors")}
+                      </p>
+                      <p
+                        className={`text-2xl md:text-3xl lg:text-4xl font-mono font-black leading-tight ${ai.institutional.investors.startsWith("+") ? "text-premium-success" : "text-premium-loss"}`}
                       >
-                        <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1a1 1 0 112 0v1a1 1 0 11-2 0zM13 16v-1a1 1 0 112 0v1a1 1 0 11-2 0zM14.586 11l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414z" />
-                      </svg>
-                      {t("buyReason")}
-                    </h4>
-                    <span className="px-4 md:px-6 py-1.5 md:py-2.5 bg-white/15 text-white rounded-lg md:rounded-2xl text-[10px] md:text-xs font-black tracking-[0.15em] md:tracking-widest uppercase border border-white/20 backdrop-blur-md">
-                      {ai.action}
-                    </span>
+                        {ai.institutional.investors}
+                      </p>
+                    </div>
+                    <div className="p-6 md:p-8 lg:p-10 bg-gradient-to-br from-white/8 to-transparent rounded-2xl md:rounded-3xl border border-white/10 group hover:border-premium-accent/50 transition-all shadow-2xl">
+                      <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-5 md:mb-7 flex items-center gap-3">
+                        📊 {t("margin")}
+                      </p>
+                      <p className="text-2xl md:text-3xl lg:text-4xl font-mono font-black text-premium-accent leading-tight">
+                        {ai.institutional.margin}
+                      </p>
+                    </div>
+                    <div className="p-6 md:p-8 lg:p-10 bg-gradient-to-br from-white/8 to-transparent rounded-2xl md:rounded-3xl border border-white/10 group hover:border-premium-accent/50 transition-all shadow-2xl">
+                      <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-5 md:mb-7 flex items-center gap-3">
+                        ⚡ {t("dayTrade")}
+                      </p>
+                      <p className="text-2xl md:text-3xl lg:text-4xl font-mono font-black text-premium-warning leading-tight">
+                        {ai.institutional.dayTrade}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-slate-200 text-sm md:text-base lg:text-lg leading-relaxed font-bold tracking-tight">
-                    {ai.detailedReason}
-                  </p>
-                  <div className="flex flex-col md:flex-row gap-5 md:gap-7 pt-8 md:pt-10 border-t border-white/10">
-                    {Object.entries(ai.indicators)
-                      .filter(([key]) => key !== "signalAlignment")
-                      .map(([key, val]) => (
-                        <div
-                          key={key}
-                          className="flex-1 p-5 md:p-7 bg-slate-900/70 rounded-xl md:rounded-2xl border border-white/10 shadow-inner"
+
+                  <div className="p-7 md:p-12 bg-gradient-to-br from-slate-800/70 to-slate-900/50 text-white rounded-2xl md:rounded-3xl border border-white/12 space-y-8 md:space-y-10 shadow-2xl relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-premium-accent group-hover:w-2 transition-all"></div>
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 md:gap-8">
+                      <h4 className="text-premium-accent font-black text-xs md:text-sm uppercase tracking-[0.15em] md:tracking-[0.2em] flex items-center gap-3 md:gap-4 leading-tight">
+                        <svg
+                          className="w-5 md:w-6 h-5 md:h-6"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
                         >
-                          <p className="text-slate-400 text-[9px] md:text-[10px] uppercase mb-3 font-black tracking-[0.15em] md:tracking-[0.2em]">
-                            {t(`indicators.${key}`)}
+                          <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1a1 1 0 112 0v1a1 1 0 11-2 0zM13 16v-1a1 1 0 112 0v1a1 1 0 11-2 0zM14.586 11l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414z" />
+                        </svg>
+                        {t("buyReason")}
+                      </h4>
+                      <span className="px-4 md:px-6 py-1.5 md:py-2.5 bg-white/15 text-white rounded-lg md:rounded-2xl text-[10px] md:text-xs font-black tracking-[0.15em] md:tracking-widest uppercase border border-white/20 backdrop-blur-md">
+                        {ai.action}
+                      </span>
+                    </div>
+                    <p className="text-slate-200 text-sm md:text-base lg:text-lg leading-relaxed font-bold tracking-tight">
+                      {ai.detailedReason}
+                    </p>
+                    <div className="flex flex-col md:flex-row gap-5 md:gap-7 pt-8 md:pt-10 border-t border-white/10">
+                      {Object.entries(ai.indicators)
+                        .filter(([key]) => key !== "signalAlignment")
+                        .map(([key, val]) => (
+                          <div
+                            key={key}
+                            className="flex-1 p-5 md:p-7 bg-slate-900/70 rounded-xl md:rounded-2xl border border-white/10 shadow-inner"
+                          >
+                            <p className="text-slate-400 text-[9px] md:text-[10px] uppercase mb-3 font-black tracking-[0.15em] md:tracking-[0.2em]">
+                              {t(`indicators.${key}`)}
+                            </p>
+                            <p className="text-white text-xs md:text-sm lg:text-base font-black tracking-tight leading-tight">
+                              {val}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right (Tactical Plan) */}
+                <div className="xl:col-span-4 space-y-6 md:space-y-10">
+                  {/* Trading Plan */}
+                  <div className="space-y-6 md:space-y-8">
+                    <h3 className="text-white text-lg md:text-xl font-black tracking-tight uppercase flex items-center gap-2 md:gap-4">
+                      <span className="text-premium-accent text-lg md:text-2xl">
+                        ⚡
+                      </span>
+                      {t("tradingPlan")}
+                    </h3>
+
+                    {/* Aggressive Strategy */}
+                    <div className="p-6 md:p-8 bg-gradient-to-br from-red-500/10 to-transparent rounded-xl md:rounded-[2.5rem] border border-red-500/20">
+                      <h4 className="text-red-400 text-xs md:text-sm font-black uppercase tracking-widest mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
+                        🔥 {ai.strategies.aggressive.type}
+                      </h4>
+                      <p className="text-slate-400 text-xs md:text-sm leading-relaxed mb-4 md:mb-6">
+                        {ai.strategies.aggressive.desc}
+                      </p>
+                      <div className="grid grid-cols-2 gap-3 md:gap-6 mb-4 md:mb-6">
+                        <div className="p-3 md:p-4 bg-slate-900/50 rounded-lg md:rounded-2xl border border-white/5">
+                          <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
+                            {t("targetPrice")}
                           </p>
-                          <p className="text-white text-xs md:text-sm lg:text-base font-black tracking-tight leading-tight">
-                            {val}
+                          <p className="text-premium-success text-base md:text-lg font-black font-mono">
+                            NT${ai.strategies.aggressive.targetPrice}
                           </p>
                         </div>
-                      ))}
+                        <div className="p-3 md:p-4 bg-slate-900/50 rounded-lg md:rounded-2xl border border-white/5">
+                          <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
+                            {t("stopLoss")}
+                          </p>
+                          <p className="text-premium-loss text-base md:text-lg font-black font-mono">
+                            NT${ai.strategies.aggressive.stopLoss}
+                          </p>
+                        </div>
+                      </div>
+                      {ai.strategies.aggressive.reasoning && (
+                        <div className="p-3 md:p-4 bg-slate-900/30 rounded-lg md:rounded-xl border border-white/5">
+                          <p className="text-slate-300 text-xs md:text-sm leading-relaxed">
+                            {ai.strategies.aggressive.reasoning}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Conservative Strategy */}
+                    <div className="p-6 md:p-8 bg-gradient-to-br from-blue-500/10 to-transparent rounded-xl md:rounded-[2.5rem] border border-blue-500/20">
+                      <h4 className="text-blue-400 text-xs md:text-sm font-black uppercase tracking-widest mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
+                        🛡️ {ai.strategies.conservative.type}
+                      </h4>
+                      <p className="text-slate-400 text-xs md:text-sm leading-relaxed mb-4 md:mb-6">
+                        {ai.strategies.conservative.desc}
+                      </p>
+                      <div className="grid grid-cols-2 gap-3 md:gap-6 mb-4 md:mb-6">
+                        <div className="p-3 md:p-4 bg-slate-900/50 rounded-lg md:rounded-2xl border border-white/5">
+                          <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
+                            {t("targetPrice")}
+                          </p>
+                          <p className="text-premium-success text-base md:text-lg font-black font-mono">
+                            NT${ai.strategies.conservative.targetPrice}
+                          </p>
+                        </div>
+                        <div className="p-3 md:p-4 bg-slate-900/50 rounded-lg md:rounded-2xl border border-white/5">
+                          <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
+                            {t("stopLoss")}
+                          </p>
+                          <p className="text-premium-loss text-base md:text-lg font-black font-mono">
+                            NT${ai.strategies.conservative.stopLoss}
+                          </p>
+                        </div>
+                      </div>
+                      {ai.strategies.conservative.reasoning && (
+                        <div className="p-3 md:p-4 bg-slate-900/30 rounded-lg md:rounded-xl border border-white/5">
+                          <p className="text-slate-300 text-xs md:text-sm leading-relaxed">
+                            {ai.strategies.conservative.reasoning}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-6 md:p-8 bg-slate-800/40 rounded-xl md:rounded-[2.5rem] border border-white/5 shadow-xl">
+                    <div className="flex items-center gap-3 md:gap-4 mb-4">
+                      <div className="flex -space-x-3">
+                        {[1, 2, 3].map((i) => (
+                          <div
+                            key={i}
+                            className="w-6 md:w-8 h-6 md:h-8 rounded-full border-2 border-slate-900 bg-premium-accent/30 flex items-center justify-center text-[8px] md:text-[10px] font-black text-premium-accent italic shadow-lg shadow-premium-accent/20"
+                          >
+                            AI
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-white text-[10px] md:text-xs font-black tracking-[0.15em] md:tracking-[0.2em]">
+                        {t("confidenceLabel")} {ai.confidence}%
+                      </p>
+                    </div>
+                    <p className="text-slate-500 text-[9px] md:text-[11px] leading-relaxed font-bold italic opacity-80">
+                      {t("disclaimer")}
+                    </p>
                   </div>
                 </div>
               </div>
-
-              {/* Right (Tactical Plan) */}
-              <div className="xl:col-span-4 space-y-6 md:space-y-10">
-                {/* Trading Plan */}
-                <div className="space-y-6 md:space-y-8">
-                  <h3 className="text-white text-lg md:text-xl font-black tracking-tight uppercase flex items-center gap-2 md:gap-4">
-                    <span className="text-premium-accent text-lg md:text-2xl">
-                      ⚡
-                    </span>
-                    {t("tradingPlan")}
-                  </h3>
-
-                  {/* Aggressive Strategy */}
-                  <div className="p-6 md:p-8 bg-gradient-to-br from-red-500/10 to-transparent rounded-xl md:rounded-[2.5rem] border border-red-500/20">
-                    <h4 className="text-red-400 text-xs md:text-sm font-black uppercase tracking-widest mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
-                      🔥 {ai.strategies.aggressive.type}
-                    </h4>
-                    <p className="text-slate-400 text-xs md:text-sm leading-relaxed mb-4 md:mb-6">
-                      {ai.strategies.aggressive.desc}
-                    </p>
-                    <div className="grid grid-cols-2 gap-3 md:gap-6 mb-4 md:mb-6">
-                      <div className="p-3 md:p-4 bg-slate-900/50 rounded-lg md:rounded-2xl border border-white/5">
-                        <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
-                          {t("targetPrice")}
-                        </p>
-                        <p className="text-premium-success text-base md:text-lg font-black font-mono">
-                          NT${ai.strategies.aggressive.targetPrice}
-                        </p>
-                      </div>
-                      <div className="p-3 md:p-4 bg-slate-900/50 rounded-lg md:rounded-2xl border border-white/5">
-                        <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
-                          {t("stopLoss")}
-                        </p>
-                        <p className="text-premium-loss text-base md:text-lg font-black font-mono">
-                          NT${ai.strategies.aggressive.stopLoss}
-                        </p>
-                      </div>
-                    </div>
-                    {ai.strategies.aggressive.reasoning && (
-                      <div className="p-3 md:p-4 bg-slate-900/30 rounded-lg md:rounded-xl border border-white/5">
-                        <p className="text-slate-300 text-xs md:text-sm leading-relaxed">
-                          {ai.strategies.aggressive.reasoning}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Conservative Strategy */}
-                  <div className="p-6 md:p-8 bg-gradient-to-br from-blue-500/10 to-transparent rounded-xl md:rounded-[2.5rem] border border-blue-500/20">
-                    <h4 className="text-blue-400 text-xs md:text-sm font-black uppercase tracking-widest mb-4 md:mb-6 flex items-center gap-2 md:gap-3">
-                      🛡️ {ai.strategies.conservative.type}
-                    </h4>
-                    <p className="text-slate-400 text-xs md:text-sm leading-relaxed mb-4 md:mb-6">
-                      {ai.strategies.conservative.desc}
-                    </p>
-                    <div className="grid grid-cols-2 gap-3 md:gap-6 mb-4 md:mb-6">
-                      <div className="p-3 md:p-4 bg-slate-900/50 rounded-lg md:rounded-2xl border border-white/5">
-                        <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
-                          {t("targetPrice")}
-                        </p>
-                        <p className="text-premium-success text-base md:text-lg font-black font-mono">
-                          NT${ai.strategies.conservative.targetPrice}
-                        </p>
-                      </div>
-                      <div className="p-3 md:p-4 bg-slate-900/50 rounded-lg md:rounded-2xl border border-white/5">
-                        <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
-                          {t("stopLoss")}
-                        </p>
-                        <p className="text-premium-loss text-base md:text-lg font-black font-mono">
-                          NT${ai.strategies.conservative.stopLoss}
-                        </p>
-                      </div>
-                    </div>
-                    {ai.strategies.conservative.reasoning && (
-                      <div className="p-3 md:p-4 bg-slate-900/30 rounded-lg md:rounded-xl border border-white/5">
-                        <p className="text-slate-300 text-xs md:text-sm leading-relaxed">
-                          {ai.strategies.conservative.reasoning}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="p-6 md:p-8 bg-slate-800/40 rounded-xl md:rounded-[2.5rem] border border-white/5 shadow-xl">
-                  <div className="flex items-center gap-3 md:gap-4 mb-4">
-                    <div className="flex -space-x-3">
-                      {[1, 2, 3].map((i) => (
-                        <div
-                          key={i}
-                          className="w-6 md:w-8 h-6 md:h-8 rounded-full border-2 border-slate-900 bg-premium-accent/30 flex items-center justify-center text-[8px] md:text-[10px] font-black text-premium-accent italic shadow-lg shadow-premium-accent/20"
-                        >
-                          AI
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-white text-[10px] md:text-xs font-black tracking-[0.15em] md:tracking-[0.2em]">
-                      {t("confidenceLabel")} {ai.confidence}%
-                    </p>
-                  </div>
-                  <p className="text-slate-500 text-[9px] md:text-[11px] leading-relaxed font-bold italic opacity-80">
-                    {t("disclaimer")}
-                  </p>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </motion.div>
       </div>
