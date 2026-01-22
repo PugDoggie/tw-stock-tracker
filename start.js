@@ -23,7 +23,7 @@ const distPath = join(__dirname, "dist");
 mainApp.use(express.static(distPath));
 
 // SPA fallback - serve index.html for all routes not matched
-mainApp.get("*", (req, res) => {
+mainApp.get(/^(?!\/api).*/, (req, res) => {
   const indexPath = join(distPath, "index.html");
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
