@@ -24,6 +24,7 @@ const requestCache = new Map();
 const CACHE_TTL = 1500; // 1.5 seconds cache for faster real-time updates
 const round2 = (n) => (Number.isFinite(n) ? Number(n.toFixed(2)) : 0);
 const refdataCache = new Map();
+const refdataAll = { data: null, timestamp: 0, ttl: 60 * 60 * 1000 };
 
 // API base for the local proxy server (avoid browser CORS)
 const API_BASE_URL =
@@ -99,6 +100,62 @@ const fetchRefdataEntry = async (stockId) => {
     refdataCache.set(key, null);
     return null;
   }
+};
+
+const loadRefdataAll = async () => {
+  if (refdataAll.data && Date.now() - refdataAll.timestamp < refdataAll.ttl) {
+    return refdataAll.data;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const url = `${API_BASE_URL}/api/refdata/all`;
+
+    const res = await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      refdataAll.data = data;
+      refdataAll.timestamp = Date.now();
+      return data;
+    }
+  } catch (err) {
+    if (isDev) console.warn(`[Refdata All] ${err.message}`);
+  }
+
+  return refdataAll.data || [];
+};
+
+const enrichLiveWithRefdata = async (items) => {
+  return Promise.all(
+    (items || []).map(async (item) => {
+      if (!/^\d{3,4}$/.test(item?.id)) return item;
+      const needsZh = !item?.name_zh;
+      const needsEn = !item?.name_en;
+      const needsIndustry = !item?.industry_zh && !item?.industry_en;
+      if (!needsZh && !needsEn && !needsIndustry) return item;
+
+      const ref = await fetchRefdataEntry(item.id);
+      if (!ref) return item;
+
+      return {
+        ...item,
+        name_zh: ref.name_zh || item.name_zh || item.name,
+        name_en: ref.name_en || item.name_en || item.name,
+        industry_zh: ref.industry_zh || item.industry_zh,
+        industry_en: ref.industry_en || item.industry_en,
+        market: ref.market || item.market,
+      };
+    }),
+  );
 };
 
 /**
@@ -456,6 +513,35 @@ export const searchTaiwanStocks = async (query) => {
     }
   }
 
+  // Broad refdata search (TWSE/TPEX) to support zh/en name queries
+  try {
+    const refAll = await loadRefdataAll();
+    if (Array.isArray(refAll) && refAll.length > 0) {
+      refAll
+        .filter((item) => {
+          const idMatch = item.id && String(item.id).includes(q);
+          const zhMatch = item.name_zh && item.name_zh.includes(q);
+          const enMatch =
+            item.name_en && item.name_en.toLowerCase().includes(qLower);
+          return idMatch || zhMatch || enMatch;
+        })
+        .slice(0, 80)
+        .forEach((item) => {
+          if (merged.has(item.id)) return;
+          merged.set(item.id, {
+            id: item.id,
+            symbol: `${item.id}.${item.market === "TWO" ? "TWO" : "TW"}`,
+            name: `${item.name_zh}${item.name_en ? ` / ${item.name_en}` : ""}`,
+            exchange: item.market || "TSE",
+            industry_zh: item.industry_zh,
+            industry_en: item.industry_en,
+          });
+        });
+    }
+  } catch (err) {
+    if (isDev) console.warn(`[Search refdata] ${err.message}`);
+  }
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -570,6 +656,9 @@ export const fetchLiveStockData = async (stockIds) => {
       "No live data available (Yahoo / Proxy / TWSE all failed). Please retry.",
     );
   }
+
+  // Enrich with refdata to fill Chinese/English names and industry
+  liveData = await enrichLiveWithRefdata(liveData);
 
   // Cache the result
   requestCache.set(cacheKey, { data: liveData, timestamp: Date.now() });
