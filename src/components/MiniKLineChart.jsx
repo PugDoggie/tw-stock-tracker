@@ -1,13 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { createChart } from "lightweight-charts";
 import { fetchHistoricalOHLC } from "../services/klineDataService";
 
 /**
- * Mini K-Line Chart - Simple price trend visualization
+ * Mini K-Line Chart - Simple price trend visualization using Canvas
  */
 const MiniKLineChart = ({ stock, isUp = true }) => {
-  const containerRef = useRef();
-  const chartRef = useRef(null);
+  const canvasRef = useRef(null);
   const [chartData, setChartData] = useState([]);
 
   // Fetch data
@@ -28,57 +26,74 @@ const MiniKLineChart = ({ stock, isUp = true }) => {
     fetchData();
   }, [stock?.id]);
 
-  // Render chart
+  // Draw chart on canvas
   useEffect(() => {
-    if (!containerRef.current || !chartData.length) return;
+    if (!canvasRef.current || !chartData.length) return;
 
-    const container = containerRef.current;
-    const width = container.clientWidth || 300;
-    const height = 80;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    const chart = createChart(container, {
-      layout: {
-        background: { color: "transparent" },
-        textColor: "transparent",
-      },
-      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-      width,
-      height,
-      timeScale: { visible: false },
-      rightPriceScale: { visible: false },
-      leftPriceScale: { visible: false },
-      crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
-      handleScroll: false,
-      handleScale: false,
-    });
+    // Set canvas size
+    const width = canvas.clientWidth || 300;
+    const height = canvas.clientHeight || 80;
+    const dpr = window.devicePixelRatio || 1;
 
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.scale(dpr, dpr);
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Get price range
+    const closes = chartData.map((d) => d.close);
+    const minPrice = Math.min(...closes);
+    const maxPrice = Math.max(...closes);
+    const priceRange = maxPrice - minPrice || 1;
+
+    // Draw line
     const lineColor = isUp ? "#22C55E" : "#EF4444";
-    const series = chart.addAreaSeries({
-      lineColor,
-      topColor: isUp ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)",
-      bottomColor: "rgba(0, 0, 0, 0)",
-      lineWidth: 2,
-      priceLineVisible: false,
-    });
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
 
-    series.setData(chartData.map((d) => ({ time: d.time, value: d.close })));
-    chart.timeScale().fitContent();
+    // Calculate points
+    const pointWidth = width / (chartData.length - 1 || 1);
+    const padding = 5;
 
-    chartRef.current = chart;
+    ctx.beginPath();
+    chartData.forEach((d, i) => {
+      const x =
+        padding + (i * (width - 2 * padding)) / (chartData.length - 1 || 1);
+      const normalizedPrice = (d.close - minPrice) / priceRange;
+      const y = height - padding - normalizedPrice * (height - 2 * padding);
 
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
       }
-    };
+    });
+    ctx.stroke();
+
+    // Draw filled area under line
+    const fillColor = isUp
+      ? "rgba(34, 197, 94, 0.1)"
+      : "rgba(239, 68, 68, 0.1)";
+    ctx.lineTo(width - padding, height - padding);
+    ctx.lineTo(padding, height - padding);
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
   }, [chartData, isUp]);
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-20"
-      style={{ position: "relative" }}
+    <canvas
+      ref={canvasRef}
+      className="w-full h-full"
+      style={{ display: "block" }}
     />
   );
 };

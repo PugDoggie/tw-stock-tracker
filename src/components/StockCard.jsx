@@ -3,12 +3,11 @@ import { motion } from "framer-motion";
 import { getAISuggestion } from "../services/aiAnalysis";
 import { useLanguage } from "../context/LanguageContext";
 import TechnicalIndicatorsCard from "./TechnicalIndicatorsCard";
+import MiniKLineChart from "./MiniKLineChart";
 
 const StockCard = ({ stock, onClick }) => {
   const { t, lang } = useLanguage();
   const isUp = stock.change >= 0;
-
-  // MiniKLineChart now handles its own data fetching
 
   // Use state for AI suggestion since it's now async
   const [ai, setAi] = useState(null);
@@ -131,6 +130,11 @@ const StockCard = ({ stock, onClick }) => {
             {isUp ? "▲" : "▼"} {Math.abs(stock.change)}%
           </p>
         </div>
+      </div>
+
+      {/* K-Line Chart */}
+      <div className="mb-6 md:mb-8 rounded-xl md:rounded-2xl border border-slate-700/40 overflow-hidden bg-slate-900/40 h-24 md:h-32">
+        <MiniKLineChart stock={stock} isUp={isUp} />
       </div>
 
       <div className="mt-auto pt-6 md:pt-8 border-t border-slate-700/40 space-y-5 md:space-y-6">

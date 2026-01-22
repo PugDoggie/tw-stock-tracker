@@ -4,6 +4,7 @@ import { getAISuggestion } from "../services/aiAnalysis";
 import { useLanguage } from "../context/LanguageContext";
 import { fetchTechnicalIndicators } from "../services/technicalIndicatorsService";
 import TechnicalAnalysisDashboard from "./TechnicalAnalysisDashboard";
+import KLineChart from "./KLineChart";
 
 const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
   const { t, lang } = useLanguage();
@@ -184,6 +185,23 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-12 md:gap-16 lg:gap-20">
                 {/* Left (Chart & Analysis) */}
                 <div className="xl:col-span-8 space-y-10 md:space-y-16">
+                  {/* K-Line Chart */}
+                  <div className="space-y-7 md:space-y-10">
+                    <div className="flex items-center gap-4">
+                      <h4 className="text-white text-[11px] md:text-xs font-black tracking-[0.2em] md:tracking-[0.3em] uppercase flex items-center gap-3 md:gap-4">
+                        <span className="relative flex h-2.5 md:h-3 w-2.5 md:w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-premium-accent opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 md:h-3 w-2.5 md:w-3 bg-premium-accent"></span>
+                        </span>
+                        {t("kline") || "K-Line Chart"}
+                      </h4>
+                    </div>
+                    <div className="bg-slate-900/60 rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 border border-white/8 shadow-inner w-full overflow-hidden">
+                      <KLineChart stock={stock} height={400} />
+                    </div>
+                  </div>
+
+                  {/* Technical Analysis */}
                   <div className="space-y-7 md:space-y-10">
                     <div className="flex items-center gap-4">
                       <h4 className="text-white text-[11px] md:text-xs font-black tracking-[0.2em] md:tracking-[0.3em] uppercase flex items-center gap-3 md:gap-4">
