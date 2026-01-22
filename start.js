@@ -22,8 +22,8 @@ mainApp.use("/api", proxyApp);
 const distPath = join(__dirname, "dist");
 mainApp.use(express.static(distPath));
 
-// SPA fallback - serve index.html for all routes not matched
-mainApp.get(/^(?!\/api).*/, (req, res) => {
+// SPA fallback - serve index.html for all non-API routes
+mainApp.use((req, res) => {
   const indexPath = join(distPath, "index.html");
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
