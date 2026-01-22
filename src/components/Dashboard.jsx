@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { fetchLiveStockData, searchTaiwanStocks } from "../services/stockApi";
 import { useLanguage } from "../context/LanguageContext";
 import { getNetworkMonitor } from "../utils/networkUtils";
+import { getMarketStatus, getMarketStatusColor } from "../utils/marketStatus";
 
 const isDev = import.meta.env.DEV;
 
@@ -38,6 +39,14 @@ const Dashboard = () => {
   const [networkStatus, setNetworkStatus] = useState("online");
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [marketStatus, setMarketStatus] = useState(getMarketStatus());
+
+  // Update market status every minute
+  useEffect(() => {
+    const updateStatus = () => setMarketStatus(getMarketStatus());
+    const interval = setInterval(updateStatus, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, []);
 
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -329,6 +338,43 @@ const Dashboard = () => {
               <h2 className="text-2xl md:text-4xl lg:text-5xl font-black text-white tracking-tighter uppercase italic bg-gradient-to-r from-white to-slate-500 bg-clip-text text-transparent">
                 {t("marketOverview")}
               </h2>
+
+              {/* Market Status Light Indicator */}
+              <div
+                className="relative group cursor-pointer"
+                title={
+                  lang === "zh" ? marketStatus.label : marketStatus.labelEn
+                }
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className={`w-4 h-4 md:w-5 md:h-5 rounded-full ${
+                    marketStatus.status === "open"
+                      ? "bg-green-400 shadow-[0_0_20px_rgba(34,197,94,0.8)]"
+                      : "bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]"
+                  }`}
+                >
+                  {marketStatus.status === "open" && (
+                    <motion.div
+                      className="absolute inset-0 rounded-full bg-green-400"
+                      animate={{ scale: [1, 1.4, 1], opacity: [0.8, 0, 0.8] }}
+                      transition={{
+                        repeat: Infinity,
+                        duration: 2,
+                        ease: "easeInOut",
+                      }}
+                    />
+                  )}
+                </motion.div>
+
+                {/* Tooltip on hover */}
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-3 py-1.5 bg-slate-900/95 border border-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap text-xs font-semibold text-white backdrop-blur-xl z-10">
+                  {lang === "zh" ? marketStatus.label : marketStatus.labelEn}
+                </div>
+              </div>
+
               {isLoading && (
                 <motion.div
                   animate={{ rotate: 360 }}
@@ -356,6 +402,7 @@ const Dashboard = () => {
                 {lastUpdated || t("refreshing")}
               </span>
             </p>
+
             {error && (
               <p className="text-red-400 text-[10px] md:text-xs mt-2 bg-red-500/10 px-3 md:px-4 py-2 rounded-lg md:rounded-xl border border-red-500/20">
                 ⚠️ {error}

@@ -233,7 +233,8 @@ app.get("/api/yahoo/historical", async (req, res) => {
           .map((ts, idx) => {
             const quoteData = result.indicators.quote[0];
             return {
-              date: new Date(ts * 1000).toISOString().split("T")[0],
+              date: new Date(ts * 1000).toISOString(),
+              timestamp: ts,
               open: quoteData.open[idx],
               high: quoteData.high[idx],
               low: quoteData.low[idx],

@@ -1,0 +1,13 @@
+﻿import React, { useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { getAISuggestion } from "../services/aiAnalysis";
+import { useLanguage } from "../context/LanguageContext";
+import { fetchTechnicalIndicators } from "../services/technicalIndicatorsService";
+import TechnicalAnalysisDashboard from "./TechnicalAnalysisDashboard";
+import AIInvestmentAssessment from "./AIInvestmentAssessment";
+import KLineChart from "./KLineChart";
+
+const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
+  const { t, lang } = useLanguage();
+  const [technicalData, setTechnicalData] = useState(null);
+  const [ai, setAi] = useState(null);

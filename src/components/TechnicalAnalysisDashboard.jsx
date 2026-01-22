@@ -55,16 +55,16 @@ const TechnicalAnalysisDashboard = ({ stock, height = 600 }) => {
   const indicators = data.indicators;
 
   return (
-    <div className="space-y-4 bg-slate-900 rounded-lg p-4 text-slate-100">
+    <div className="space-y-4 md:space-y-6 bg-slate-900 rounded-lg p-4 md:p-6 text-slate-100">
       {/* Indicators Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
         {/* RSI */}
-        <div className="bg-slate-800 p-4 rounded border border-slate-700">
-          <div className="text-xs text-slate-400 mb-2">
+        <div className="bg-slate-800 p-4 md:p-5 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors">
+          <div className="text-xs md:text-sm text-slate-400 mb-2 md:mb-3 font-semibold">
             {t("technicalIndicators.rsi")}
           </div>
           <div
-            className={`text-2xl font-bold font-mono ${
+            className={`text-2xl md:text-3xl font-bold font-mono ${
               parseFloat(indicators.rsi) > 70
                 ? "text-red-400"
                 : parseFloat(indicators.rsi) < 30
@@ -74,7 +74,7 @@ const TechnicalAnalysisDashboard = ({ stock, height = 600 }) => {
           >
             {indicators.rsi}
           </div>
-          <div className="text-xs text-slate-500 mt-1">
+          <div className="text-xs md:text-sm text-slate-500 mt-2 leading-relaxed">
             {parseFloat(indicators.rsi) > 70
               ? t("technicalIndicators.rsiOverbought")
               : parseFloat(indicators.rsi) < 30
@@ -84,12 +84,12 @@ const TechnicalAnalysisDashboard = ({ stock, height = 600 }) => {
         </div>
 
         {/* MACD */}
-        <div className="bg-slate-800 p-4 rounded border border-slate-700">
-          <div className="text-xs text-slate-400 mb-2">
+        <div className="bg-slate-800 p-4 md:p-5 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors">
+          <div className="text-xs md:text-sm text-slate-400 mb-2 md:mb-3 font-semibold">
             {t("technicalIndicators.macd")}
           </div>
           <div
-            className={`text-2xl font-bold ${
+            className={`text-lg md:text-xl font-bold mb-1 ${
               indicators.macd.trend === "Bullish"
                 ? "text-green-400"
                 : "text-red-400"
@@ -99,19 +99,19 @@ const TechnicalAnalysisDashboard = ({ stock, height = 600 }) => {
               ? t("technicalIndicators.macdBullish")
               : t("technicalIndicators.macdBearish")}
           </div>
-          <div className="text-xs text-slate-500 mt-1 font-mono">
+          <div className="text-xs md:text-sm text-slate-500 mt-2 font-mono">
             {indicators.macd.histogram > 0 ? "+" : ""}
             {indicators.macd.histogram}
           </div>
         </div>
 
         {/* Stochastic */}
-        <div className="bg-slate-800 p-4 rounded border border-slate-700">
-          <div className="text-xs text-slate-400 mb-2">
+        <div className="bg-slate-800 p-4 md:p-5 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors">
+          <div className="text-xs md:text-sm text-slate-400 mb-2 md:mb-3 font-semibold">
             {t("technicalIndicators.stochastic")}
           </div>
           <div
-            className={`text-2xl font-bold font-mono ${
+            className={`text-2xl md:text-3xl font-bold font-mono ${
               indicators.stochastic.status === "Overbought"
                 ? "text-red-400"
                 : indicators.stochastic.status === "Oversold"
@@ -121,7 +121,7 @@ const TechnicalAnalysisDashboard = ({ stock, height = 600 }) => {
           >
             {indicators.stochastic.k}
           </div>
-          <div className="text-xs text-slate-500 mt-1">
+          <div className="text-xs md:text-sm text-slate-500 mt-2 leading-relaxed">
             {indicators.stochastic.status === "Overbought"
               ? t("technicalIndicators.stochasticOverbought")
               : indicators.stochastic.status === "Oversold"
@@ -131,12 +131,12 @@ const TechnicalAnalysisDashboard = ({ stock, height = 600 }) => {
         </div>
 
         {/* Moving Averages */}
-        <div className="bg-slate-800 p-4 rounded border border-slate-700">
-          <div className="text-xs text-slate-400 mb-2">
+        <div className="bg-slate-800 p-4 md:p-5 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors">
+          <div className="text-xs md:text-sm text-slate-400 mb-2 md:mb-3 font-semibold">
             {t("technicalIndicators.maTrend")}
           </div>
           <div
-            className={`text-2xl font-bold ${
+            className={`text-base md:text-lg font-bold mb-1 break-words ${
               indicators.movingAverages.trend === "Uptrend"
                 ? "text-green-400"
                 : indicators.movingAverages.trend === "Downtrend"
@@ -150,18 +150,18 @@ const TechnicalAnalysisDashboard = ({ stock, height = 600 }) => {
                 ? t("technicalIndicators.maTrendDown")
                 : t("technicalIndicators.maTrendNeutral")}
           </div>
-          <div className="text-xs text-slate-500 mt-1 font-mono">
+          <div className="text-xs md:text-sm text-slate-500 mt-2 font-mono">
             {t("technicalIndicators.sma20")}: {indicators.movingAverages.sma20}
           </div>
         </div>
 
         {/* Bollinger Bands */}
-        <div className="bg-slate-800 p-4 rounded border border-slate-700">
-          <div className="text-xs text-slate-400 mb-2">
+        <div className="bg-slate-800 p-4 md:p-5 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors">
+          <div className="text-xs md:text-sm text-slate-400 mb-2 md:mb-3 font-semibold">
             {t("technicalIndicators.bollingerBands")}
           </div>
           <div
-            className={`text-lg font-bold font-mono ${
+            className={`text-xs md:text-sm font-bold mb-1 break-words whitespace-normal ${
               indicators.bollingerBands.position === "Above Upper"
                 ? "text-red-400"
                 : indicators.bollingerBands.position === "Below Lower"
@@ -175,20 +175,20 @@ const TechnicalAnalysisDashboard = ({ stock, height = 600 }) => {
                 ? t("technicalIndicators.bbBelowLower")
                 : t("technicalIndicators.bbInsideBands")}
           </div>
-          <div className="text-xs text-slate-500 mt-1">
+          <div className="text-xs md:text-sm text-slate-500 mt-2">
             {t("technicalIndicators.price")}: ${indicators.price.toFixed(2)}
           </div>
         </div>
 
         {/* ATR */}
-        <div className="bg-slate-800 p-4 rounded border border-slate-700">
-          <div className="text-xs text-slate-400 mb-2">
+        <div className="bg-slate-800 p-4 md:p-5 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors">
+          <div className="text-xs md:text-sm text-slate-400 mb-2 md:mb-3 font-semibold">
             {t("technicalIndicators.atr")}
           </div>
-          <div className="text-2xl font-bold font-mono text-slate-300">
+          <div className="text-2xl md:text-3xl font-bold font-mono text-slate-300">
             {indicators.atr}
           </div>
-          <div className="text-xs text-slate-500 mt-1">
+          <div className="text-xs md:text-sm text-slate-500 mt-2 leading-relaxed">
             {t("technicalIndicators.volatility")}
           </div>
         </div>
@@ -196,7 +196,7 @@ const TechnicalAnalysisDashboard = ({ stock, height = 600 }) => {
 
       {/* Signal Summary */}
       <div
-        className={`p-4 rounded-lg border ${
+        className={`p-4 md:p-5 rounded-xl border ${
           parseFloat(indicators.rsi) > 70 || indicators.macd.trend === "Bearish"
             ? "bg-red-900/20 border-red-700 text-red-300"
             : parseFloat(indicators.rsi) < 30 ||
@@ -205,10 +205,11 @@ const TechnicalAnalysisDashboard = ({ stock, height = 600 }) => {
               : "bg-slate-800 border-slate-700 text-slate-300"
         }`}
       >
-        <div className="font-bold mb-1">
-          📊 {t("technicalIndicators.technicalSignal")}
+        <div className="font-bold mb-2 md:mb-3 text-sm md:text-base flex items-center gap-2">
+          <span>📊</span>
+          <span>{t("technicalIndicators.technicalSignal")}</span>
         </div>
-        <div className="text-sm">
+        <div className="text-sm md:text-base leading-relaxed">
           {parseFloat(indicators.rsi) > 70
             ? `⚠️ ${t("technicalIndicators.overbought")}`
             : parseFloat(indicators.rsi) < 30

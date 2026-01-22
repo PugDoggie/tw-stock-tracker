@@ -15,6 +15,12 @@ otcStocks.forEach((s) => stockMarketMap.set(s.id, s.market || "TWO"));
 // Determine correct Yahoo Finance suffix for TW/TWO tickers
 const getYahooSymbol = (id) => {
   const cleanId = String(id).trim();
+
+  // Index symbols (starting with ^) don't need suffix
+  if (cleanId.startsWith("^")) {
+    return cleanId;
+  }
+
   // First, check if it's an OTC stock by looking it up in our data
   const market = stockMarketMap.get(cleanId);
   const suffix = market === "TWO" ? "TWO" : "TW";
@@ -23,8 +29,11 @@ const getYahooSymbol = (id) => {
 
 /**
  * Fetch historical OHLC data from Yahoo Finance
- * Strategy: Fetch last 15 days (12 business days + buffer) to ensure enough data
- * Retry logic: 2 attempts with fallback to different period ranges
+ * Strategy: Fetch complete historical data with intelligent period selection based on interval
+ * Yahoo Finance data scope:
+ * - 5m interval: only current day (1d) - for intraday trading
+ * - 60m interval: 5-7 days (5d) - for recent intraday trends
+ * - 1d, 1wk, 1mo intervals: 5 years (5y) - for long-term analysis
  */
 export const fetchHistoricalOHLC = async (
   stockId,
@@ -35,9 +44,19 @@ export const fetchHistoricalOHLC = async (
   const symbol = getYahooSymbol(stockId);
   const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 
+  // Determine appropriate period based on interval
+  let effectivePeriod = period;
+  if (interval === "5m") {
+    effectivePeriod = "1d"; // 5-min K-line: only current day
+  } else if (interval === "60m") {
+    effectivePeriod = "5d"; // 1-hour K-line: recent week
+  } else {
+    effectivePeriod = "5y"; // Daily/Weekly/Monthly: 5-year history
+  }
+
   // Try different period ranges for better data coverage
-  const periods = ["1mo", "3mo", "6mo"];
-  const currentPeriod = periods[retryCount] || period;
+  const periods = [effectivePeriod, effectivePeriod === "1d" ? "5d" : "3mo"];
+  const currentPeriod = periods[retryCount] || effectivePeriod;
 
   try {
     console.log(
@@ -73,28 +92,32 @@ export const fetchHistoricalOHLC = async (
         .filter(
           (item) => item && item.close && item.open && item.high && item.low,
         )
-        .map((item) => ({
-          time: Math.floor(new Date(item.date).getTime() / 1000),
-          open: parseFloat(Number(item.open).toFixed(2)),
-          high: parseFloat(Number(item.high).toFixed(2)),
-          low: parseFloat(Number(item.low).toFixed(2)),
-          close: parseFloat(Number(item.close).toFixed(2)),
-        }))
+        .map((item) => {
+          const rawTs =
+            typeof item.timestamp === "number"
+              ? item.timestamp
+              : typeof item.date === "number"
+                ? item.date
+                : Math.floor(new Date(item.date).getTime() / 1000);
+
+          return {
+            time: rawTs,
+            open: parseFloat(Number(item.open).toFixed(2)),
+            high: parseFloat(Number(item.high).toFixed(2)),
+            low: parseFloat(Number(item.low).toFixed(2)),
+            close: parseFloat(Number(item.close).toFixed(2)),
+          };
+        })
         .sort((a, b) => a.time - b.time); // Ensure chronological order
 
       if (ohlcData.length === 0) {
         throw new Error("No valid OHLC data after filtering");
       }
 
-      // Get last 100 days for comprehensive technical analysis
-      // This ensures RSI has enough historical data (needs at least 14+1 points)
-      const last100Days = ohlcData.slice(-100);
+      // Return all available data for complete historical analysis
+      console.log(`✅ [K-Line] ${symbol}: Got ${ohlcData.length} candles`);
 
-      console.log(
-        `✅ [K-Line] ${symbol}: Got ${last100Days.length} candles (from ${ohlcData.length} total)`,
-      );
-
-      return last100Days;
+      return ohlcData;
     }
 
     throw new Error("Invalid response format - no quotes found");
