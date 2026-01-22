@@ -27,8 +27,13 @@ const refdataCache = new Map();
 const refdataAll = { data: null, timestamp: 0, ttl: 60 * 60 * 1000 };
 
 // API base for the local proxy server (avoid browser CORS)
+// In production: use relative path /api (same domain)
+// In dev: use http://localhost:3001
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+  import.meta.env.VITE_API_BASE_URL ||
+  (typeof window !== "undefined" && window.location.hostname !== "localhost"
+    ? ""
+    : "http://localhost:3001");
 
 // Build market type map from stock data
 const stockMarketMap = new Map();

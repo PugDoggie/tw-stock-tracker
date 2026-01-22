@@ -1,33 +1,48 @@
-import { spawn } from "child_process";
+import express from "express";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import path from "path";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Import proxy server
+import proxyApp from "./proxy-server.js";
+
 console.log("🚀 Starting TW Stock Tracker (Production Mode)...");
 
-// Start proxy server
-console.log("📡 Starting proxy server on port 3001...");
-const proxy = spawn("node", ["proxy-server.js"], {
-  cwd: __dirname,
-  stdio: "inherit",
+const mainApp = express();
+const PORT = process.env.PORT || 3000;
+
+// Mount proxy API routes at /api
+mainApp.use("/api", proxyApp);
+
+// Serve static frontend files from dist
+const distPath = join(__dirname, "dist");
+mainApp.use(express.static(distPath));
+
+// SPA fallback - serve index.html for all routes not matched
+mainApp.get("*", (req, res) => {
+  const indexPath = join(distPath, "index.html");
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res
+      .status(404)
+      .json({ error: "Frontend build not found. Run: npm run build" });
+  }
 });
 
-// Start frontend server
-console.log("🌐 Starting frontend server on port 3000...");
-const frontend = spawn("npx", ["serve", "-s", "dist", "-l", "3000"], {
-  cwd: __dirname,
-  stdio: "inherit",
+// Error handler
+mainApp.use((err, req, res, next) => {
+  console.error("Error:", err);
+  res.status(500).json({ error: err.message });
 });
 
-// Handle exits
-process.on("SIGINT", () => {
-  console.log("\n🛑 Shutting down...");
-  proxy.kill();
-  frontend.kill();
-  process.exit(0);
+// Start server
+mainApp.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ Server running at http://0.0.0.0:${PORT}`);
+  console.log(`📡 API routes available at /api`);
+  console.log(`🌐 Frontend available at /`);
 });
-
-proxy.on("error", (err) => console.error("Proxy error:", err));
-frontend.on("error", (err) => console.error("Frontend error:", err));

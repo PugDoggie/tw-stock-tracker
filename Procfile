@@ -1,2 +1,1 @@
-web: npm run build && npm run serve
-proxy: node proxy-server.js
+web: npm run build && node start.js

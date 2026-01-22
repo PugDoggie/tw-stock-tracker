@@ -515,3 +515,6 @@ app.get("/api/index/weights", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Proxy server running on http://localhost:${PORT}`);
 });
+
+// Also export app for use in start.js (production combined server)
+export default app;
