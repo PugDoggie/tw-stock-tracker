@@ -68,6 +68,16 @@ const Dashboard = () => {
         growthScore: 0,
         market: "INDEX",
       },
+      {
+        id: "TXF",
+        symbol: "TXF=F",
+        name_zh: "台指期全",
+        name_en: "TAIEX Futures",
+        industry_zh: "期貨",
+        industry_en: "Futures",
+        growthScore: 0,
+        market: "FUT",
+      },
     ],
     [],
   );

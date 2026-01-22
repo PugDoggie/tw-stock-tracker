@@ -37,6 +37,7 @@ app.get("/", (req, res) => {
       "/api/yahoo/search - Yahoo Finance Search",
       "/api/index/weights - Index Component Weights",
       "/api/refdata/search - TWSE/TPEX reference data lookup",
+      "/api/refdata/all - TWSE/TPEX reference data (cached)",
     ],
   });
 });
@@ -173,6 +174,26 @@ app.get("/api/refdata/search", async (req, res) => {
     }
 
     return res.json(found);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Return all refdata (TWSE + TPEX)
+app.get("/api/refdata/all", async (_req, res) => {
+  try {
+    const [twse, tpex] = await Promise.all([
+      fetchTwseRefdata().catch((err) => {
+        console.warn("[Refdata] TWSE fetch failed", err.message);
+        return [];
+      }),
+      fetchTpexRefdata().catch((err) => {
+        console.warn("[Refdata] TPEX fetch failed", err.message);
+        return [];
+      }),
+    ]);
+
+    return res.json([...twse, ...tpex]);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -494,3 +515,6 @@ app.get("/api/index/weights", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Proxy server running on http://localhost:${PORT}`);
 });
+
+// Also export app for use in start.js (production combined server)
+export default app;

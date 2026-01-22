@@ -14,9 +14,11 @@ import {
   searchableStocks,
 } from "../data/stocks";
 
-// Predefined symbols that should NOT append TW/TWO suffix (index only)
+// Predefined symbols (indexes/futures) that should NOT append TW/TWO suffix
+// Values can be an array of Yahoo symbols (first entry is preferred)
 const SPECIAL_SYMBOL_MAP = {
-  "^TWII": "^TWII", // TAIEX 台灣加權指數
+  "^TWII": ["^TWII"], // TAIEX 台灣加權指數
+  TXF: ["TXF=F", "WTX&"], // 台指期全 (front-month) with fallback symbol
 };
 
 const isDev = import.meta.env.DEV;
@@ -24,10 +26,16 @@ const requestCache = new Map();
 const CACHE_TTL = 1500; // 1.5 seconds cache for faster real-time updates
 const round2 = (n) => (Number.isFinite(n) ? Number(n.toFixed(2)) : 0);
 const refdataCache = new Map();
+const refdataAll = { data: null, timestamp: 0, ttl: 60 * 60 * 1000 };
 
 // API base for the local proxy server (avoid browser CORS)
+// In production: use relative path /api (same domain)
+// In dev: use http://localhost:3001
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
+  import.meta.env.VITE_API_BASE_URL ||
+  (typeof window !== "undefined" && window.location.hostname !== "localhost"
+    ? ""
+    : "http://localhost:3001");
 
 // Build market type map from stock data
 const stockMarketMap = new Map();
@@ -41,7 +49,8 @@ const getYahooSymbol = (id) => {
   const cleanId = String(id).trim();
 
   // Return raw symbol for special assets (indexes/futures)
-  if (SPECIAL_SYMBOL_MAP[cleanId]) return SPECIAL_SYMBOL_MAP[cleanId];
+  const special = SPECIAL_SYMBOL_MAP[cleanId];
+  if (special) return Array.isArray(special) ? special[0] : special;
 
   // Check market map first (most accurate), fall back to OTC_ID_SET for backwards compatibility
   const market = stockMarketMap.get(cleanId);
@@ -56,8 +65,9 @@ const getSymbolCandidates = (id) => {
   const cleanId = String(id).trim();
 
   // Check if this is a special symbol (index or futures) - return as-is
-  if (SPECIAL_SYMBOL_MAP[cleanId]) {
-    return [SPECIAL_SYMBOL_MAP[cleanId]];
+  const special = SPECIAL_SYMBOL_MAP[cleanId];
+  if (special) {
+    return Array.isArray(special) ? special : [special];
   }
 
   // For known stocks, return single symbol
@@ -99,6 +109,62 @@ const fetchRefdataEntry = async (stockId) => {
     refdataCache.set(key, null);
     return null;
   }
+};
+
+const loadRefdataAll = async () => {
+  if (refdataAll.data && Date.now() - refdataAll.timestamp < refdataAll.ttl) {
+    return refdataAll.data;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const url = `${API_BASE_URL}/api/refdata/all`;
+
+    const res = await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      refdataAll.data = data;
+      refdataAll.timestamp = Date.now();
+      return data;
+    }
+  } catch (err) {
+    if (isDev) console.warn(`[Refdata All] ${err.message}`);
+  }
+
+  return refdataAll.data || [];
+};
+
+const enrichLiveWithRefdata = async (items) => {
+  return Promise.all(
+    (items || []).map(async (item) => {
+      if (!/^\d{3,4}$/.test(item?.id)) return item;
+      const needsZh = !item?.name_zh;
+      const needsEn = !item?.name_en;
+      const needsIndustry = !item?.industry_zh && !item?.industry_en;
+      if (!needsZh && !needsEn && !needsIndustry) return item;
+
+      const ref = await fetchRefdataEntry(item.id);
+      if (!ref) return item;
+
+      return {
+        ...item,
+        name_zh: ref.name_zh || item.name_zh || item.name,
+        name_en: ref.name_en || item.name_en || item.name,
+        industry_zh: ref.industry_zh || item.industry_zh,
+        industry_en: ref.industry_en || item.industry_en,
+        market: ref.market || item.market,
+      };
+    }),
+  );
 };
 
 // Exported helper for UI to enrich metadata when local lists lack Chinese names
@@ -434,6 +500,27 @@ export const searchTaiwanStocks = async (query) => {
   const merged = new Map();
   localMatches.forEach((item) => merged.set(item.id, item));
 
+  // Promote special assets (index/futures) when users search for them explicitly
+  const specialAssets = [
+    {
+      id: "TXF",
+      symbol: (SPECIAL_SYMBOL_MAP.TXF || [])[0] || "TXF=F",
+      name: "台指期全 / TAIEX Futures",
+      exchange: "FUT",
+    },
+  ];
+
+  const matchesFutures =
+    q.includes("台指期") ||
+    q.includes("台指") ||
+    qLower.includes("txf") ||
+    qLower === "tx" ||
+    qLower.includes("taiex future");
+
+  if (matchesFutures) {
+    specialAssets.forEach((asset) => merged.set(asset.id, asset));
+  }
+
   // If user輸入數字代號（3-4碼），即便不在本地清單也先提供一筆候選，避免新股找不到
   if (/^\d{3,4}$/.test(q) && !merged.has(q)) {
     merged.set(q, {
@@ -457,6 +544,35 @@ export const searchTaiwanStocks = async (query) => {
         industry_en: ref.industry_en,
       });
     }
+  }
+
+  // Broad refdata search (TWSE/TPEX) to support zh/en name queries
+  try {
+    const refAll = await loadRefdataAll();
+    if (Array.isArray(refAll) && refAll.length > 0) {
+      refAll
+        .filter((item) => {
+          const idMatch = item.id && String(item.id).includes(q);
+          const zhMatch = item.name_zh && item.name_zh.includes(q);
+          const enMatch =
+            item.name_en && item.name_en.toLowerCase().includes(qLower);
+          return idMatch || zhMatch || enMatch;
+        })
+        .slice(0, 80)
+        .forEach((item) => {
+          if (merged.has(item.id)) return;
+          merged.set(item.id, {
+            id: item.id,
+            symbol: `${item.id}.${item.market === "TWO" ? "TWO" : "TW"}`,
+            name: `${item.name_zh}${item.name_en ? ` / ${item.name_en}` : ""}`,
+            exchange: item.market || "TSE",
+            industry_zh: item.industry_zh,
+            industry_en: item.industry_en,
+          });
+        });
+    }
+  } catch (err) {
+    if (isDev) console.warn(`[Search refdata] ${err.message}`);
   }
 
   try {
@@ -573,6 +689,9 @@ export const fetchLiveStockData = async (stockIds) => {
       "No live data available (Yahoo / Proxy / TWSE all failed). Please retry.",
     );
   }
+
+  // Enrich with refdata to fill Chinese/English names and industry
+  liveData = await enrichLiveWithRefdata(liveData);
 
   // Cache the result
   requestCache.set(cacheKey, { data: liveData, timestamp: Date.now() });
