@@ -97,6 +97,20 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
     }
   }, [stock]);
 
+  // Allow ESC to close the modal
+  useEffect(() => {
+    if (!stock) return undefined;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [stock, onClose]);
+
   if (!stock) return null;
 
   const isUp = stock.change >= 0;
