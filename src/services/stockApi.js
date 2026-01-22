@@ -101,6 +101,9 @@ const fetchRefdataEntry = async (stockId) => {
   }
 };
 
+// Exported helper for UI to enrich metadata when local lists lack Chinese names
+export const fetchRefdataEntryPublic = fetchRefdataEntry;
+
 /**
  * Fetch from local proxy server (Primary method)
  * This avoids CORS issues and provides fast real-time data

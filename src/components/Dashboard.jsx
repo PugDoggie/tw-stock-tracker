@@ -3,7 +3,11 @@ import StockCard from "./StockCard";
 import StockDetailModal from "./StockDetailModal";
 import { stocks, isGrowthStock, otcStocks } from "../data/stocks";
 import { motion, AnimatePresence } from "framer-motion";
-import { fetchLiveStockData, searchTaiwanStocks } from "../services/stockApi";
+import {
+  fetchLiveStockData,
+  searchTaiwanStocks,
+  fetchRefdataEntryPublic,
+} from "../services/stockApi";
 import { useLanguage } from "../context/LanguageContext";
 import { getNetworkMonitor } from "../utils/networkUtils";
 import { getMarketStatus, getMarketStatusColor } from "../utils/marketStatus";
@@ -99,22 +103,51 @@ const Dashboard = () => {
 
         const data = await fetchLiveStockData(idsToRefresh);
 
+        // Enrich missing metadata via refdata (fills Chinese names/market)
+        const missingMetaIds = data
+          .filter((s) => !stockMeta.find((m) => m.id === s.id))
+          .map((s) => s.id);
+
+        const refdataMap = new Map();
+        if (missingMetaIds.length > 0) {
+          const results = await Promise.all(
+            missingMetaIds.map(async (id) => {
+              try {
+                const ref = await fetchRefdataEntryPublic(id);
+                return [id, ref];
+              } catch (err) {
+                return [id, null];
+              }
+            }),
+          );
+          results.forEach(([id, ref]) => {
+            if (ref) refdataMap.set(id, ref);
+          });
+        }
+
         if (data.length > 0) {
           setLiveStocks((prev) => {
             const existingMap = new Map(prev.map((s) => [s.id, s]));
             data.forEach((s) => {
               const meta = stockMeta.find((m) => m.id === s.id);
+              const ref = refdataMap.get(s.id);
               const apiName = s.name || s.id;
               existingMap.set(s.id, {
                 ...s,
-                name_zh: meta?.name_zh || apiName,
-                name_en: meta?.name_en || apiName,
+                name_zh: meta?.name_zh || ref?.name_zh || apiName,
+                name_en: meta?.name_en || ref?.name_en || apiName,
                 industry_zh:
                   meta?.industry_zh ||
-                  (meta?.market === "TWO" ? "興櫃" : "上市櫃"),
+                  ref?.industry_zh ||
+                  (meta?.market === "TWO" || ref?.market === "TWO"
+                    ? "興櫃"
+                    : "上市櫃"),
                 industry_en:
                   meta?.industry_en ||
-                  (meta?.market === "TWO" ? "TWO" : "TW Listed"),
+                  ref?.industry_en ||
+                  (meta?.market === "TWO" || ref?.market === "TWO"
+                    ? "TWO"
+                    : "TW Listed"),
                 growthScore:
                   meta?.growthScore || (Math.abs(s.change) > 2.5 ? 96 : 65),
               });
@@ -207,7 +240,7 @@ const Dashboard = () => {
   // Fetch search suggestions for any TW/TWO ticker
   useEffect(() => {
     const q = debouncedSearchQuery.trim();
-    if (q.length < 2) {
+    if (q.length < 1) {
       setSearchResults([]);
       setSearchLoading(false);
       return;
@@ -261,25 +294,47 @@ const Dashboard = () => {
   }, []);
 
   const displayedStocks = useMemo(() => {
+    const raw = debouncedSearchQuery.trim();
+    const q = raw.toLowerCase();
+
+    const scoreMatch = (stock) => {
+      if (!q) return 1; // show all when empty
+
+      const zh = stock.name_zh || "";
+      const en = (stock.name_en || "").toLowerCase();
+      const sym = (stock.symbol || "").toLowerCase();
+
+      // Numeric code exact/partial
+      if (/^\d+$/.test(q)) {
+        if (stock.id === raw) return 100;
+        if (stock.id.startsWith(raw)) return 70;
+        if (stock.id.includes(raw)) return 40;
+      }
+
+      // Symbol and English name
+      if (sym.startsWith(q)) return 60;
+      if (sym.includes(q)) return 35;
+      if (en.startsWith(q)) return 55;
+      if (en.includes(q)) return 30;
+
+      // Chinese name (case-insensitive not needed)
+      if (zh.startsWith(raw)) return 55;
+      if (zh.includes(raw)) return 30;
+
+      return 0;
+    };
+
     return liveStocks
-      .filter((stock) => {
-        const nameMatch =
-          lang === "zh"
-            ? stock.name_zh
-                ?.toLowerCase()
-                .includes(debouncedSearchQuery.toLowerCase())
-            : stock.name_en
-                ?.toLowerCase()
-                .includes(debouncedSearchQuery.toLowerCase());
-        const idMatch = stock.id.includes(debouncedSearchQuery);
-        const categoryMatch = filterGrowth ? isGrowthStock(stock) : true;
-        return (nameMatch || idMatch) && categoryMatch;
-      })
+      .map((stock) => ({ stock, score: scoreMatch(stock) }))
+      .filter(({ score }) => score > 0)
+      .filter(({ stock }) => (filterGrowth ? isGrowthStock(stock) : true))
       .sort((a, b) => {
-        if (b.growthScore !== a.growthScore)
-          return b.growthScore - a.growthScore;
-        return a.id.localeCompare(b.id);
-      });
+        if (b.score !== a.score) return b.score - a.score;
+        if (b.stock.growthScore !== a.stock.growthScore)
+          return b.stock.growthScore - a.stock.growthScore;
+        return a.stock.id.localeCompare(b.stock.id);
+      })
+      .map(({ stock }) => stock);
   }, [liveStocks, debouncedSearchQuery, filterGrowth, lang]);
 
   const handleStockClick = useCallback((stock) => {
@@ -428,7 +483,7 @@ const Dashboard = () => {
                 🔍
               </span>
 
-              {debouncedSearchQuery.trim().length >= 2 && (
+              {debouncedSearchQuery.trim().length >= 1 && (
                 <div className="absolute z-20 left-0 right-0 mt-2 bg-slate-900/95 border border-white/10 rounded-2xl shadow-2xl max-h-64 overflow-y-auto backdrop-blur-xl">
                   {searchLoading && (
                     <div className="px-4 py-3 text-sm text-slate-300">
