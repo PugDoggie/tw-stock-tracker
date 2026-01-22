@@ -9,7 +9,10 @@ const PORT = 3001;
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type,User-Agent,Accept,Cache-Control",
+  );
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
@@ -46,87 +49,110 @@ app.get("/api/twse", async (req, res) => {
   }
 });
 
-// Yahoo quote proxy - fetch real-time data from Yahoo Finance
+// Yahoo quote proxy - fetch individual quotes using v8 chart endpoint (reliable)
 app.get("/api/yahoo/quote", async (req, res) => {
   const { symbols } = req.query;
   if (!symbols) return res.status(400).json({ error: "Missing symbols param" });
 
-  const symbolArray = symbols.split(",");
-  const results = [];
+  const symbolArray = symbols
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-  try {
-    // Fetch each symbol individually from Yahoo Finance
-    for (const symbol of symbolArray) {
-      try {
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+  if (symbolArray.length === 0) {
+    return res.status(400).json({ error: "No valid symbols" });
+  }
 
-        const response = await fetch(url, {
-          headers: {
-            Accept: "application/json",
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
-            Origin: "https://finance.yahoo.com",
-            Referer: "https://finance.yahoo.com/",
-          },
-        });
+  // Fetch quote for a single symbol using v8 chart endpoint
+  const fetchQuote = async (symbol) => {
+    try {
+      // For stocks and index, use Yahoo Finance
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
 
-        if (response.ok) {
-          const data = await response.json();
-          const result = data?.chart?.result?.[0];
-
-          if (result) {
-            const meta = result.meta;
-            const quote = result.indicators?.quote?.[0];
-            const lastIdx = quote?.close?.length - 1;
-
-            if (lastIdx >= 0) {
-              const currentPrice =
-                quote.close[lastIdx] || meta.regularMarketPrice;
-              const previousClose =
-                meta.chartPreviousClose || meta.previousClose;
-              const change = currentPrice - previousClose;
-              const changePercent = (change / previousClose) * 100;
-
-              results.push({
-                symbol: symbol,
-                regularMarketPrice: currentPrice,
-                regularMarketChange: change,
-                regularMarketChangePercent: changePercent,
-                regularMarketDayHigh:
-                  quote.high[lastIdx] || meta.regularMarketDayHigh,
-                regularMarketDayLow:
-                  quote.low[lastIdx] || meta.regularMarketDayLow,
-                regularMarketVolume:
-                  quote.volume[lastIdx] || meta.regularMarketVolume,
-                regularMarketOpen:
-                  quote.open[lastIdx] || meta.regularMarketOpen,
-                regularMarketPreviousClose: previousClose,
-              });
-
-              console.log(
-                `[Yahoo Quote] ${symbol}: $${currentPrice.toFixed(2)} (${changePercent > 0 ? "+" : ""}${changePercent.toFixed(2)}%)`,
-              );
-            }
-          }
-        }
-      } catch (symbolErr) {
-        console.error(`[Yahoo Quote] Error for ${symbol}:`, symbolErr.message);
-      }
-    }
-
-    if (results.length > 0) {
-      res.json({
-        quoteResponse: {
-          result: results,
-          error: null,
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
         },
       });
-    } else {
-      res.status(404).json({ error: "No quotes found" });
+
+      if (!response.ok) {
+        console.warn(`[Quote] ${symbol}: HTTP ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      const result = data?.chart?.result?.[0];
+      if (!result) {
+        console.warn(`[Quote] ${symbol}: No chart result`);
+        return null;
+      }
+
+      // Extract quote data from chart
+      const meta = result?.meta || {};
+      const regularMarketPrice = meta.regularMarketPrice || 0;
+      // Use chartPreviousClose for accurate percentage calculations (more reliable than regularMarketPreviousClose)
+      const previousClose =
+        meta.chartPreviousClose ||
+        meta.previousClose ||
+        meta.regularMarketPreviousClose ||
+        regularMarketPrice;
+      const change = regularMarketPrice - previousClose;
+      const changePercent = previousClose ? (change / previousClose) * 100 : 0;
+
+      if (regularMarketPrice > 0) {
+        console.log(
+          `[Quote] ${symbol}: $${regularMarketPrice.toFixed(2)} (${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%) [${meta.marketState || "unknown"}]`,
+        );
+      }
+
+      return {
+        symbol,
+        regularMarketPrice,
+        regularMarketChange: change,
+        regularMarketChangePercent: changePercent,
+        regularMarketDayHigh: meta.regularMarketDayHigh,
+        regularMarketDayLow: meta.regularMarketDayLow,
+        regularMarketVolume: meta.regularMarketVolume,
+        regularMarketOpen: meta.regularMarketOpen,
+        // Use chartPreviousClose (more accurate than regularMarketPreviousClose)
+        regularMarketPreviousClose: previousClose,
+      };
+    } catch (err) {
+      console.error(`[Quote] ${symbol}: ${err.message}`);
+      return null;
     }
+  };
+
+  try {
+    console.log(`[Quote] Fetching ${symbolArray.length} symbols...`);
+
+    // Fetch all quotes in parallel (individual calls for reliability)
+    const results = await Promise.all(
+      symbolArray.map((sym) => fetchQuote(sym)),
+    );
+
+    // Filter out null results
+    const validResults = results.filter(Boolean);
+
+    if (validResults.length === 0) {
+      console.warn("[Quote] No valid quotes returned");
+      return res.status(404).json({ error: "No quotes found" });
+    }
+
+    console.log(
+      `[Quote] Returning ${validResults.length}/${symbolArray.length} quotes`,
+    );
+    res.json({
+      quoteResponse: {
+        result: validResults,
+        error: null,
+      },
+    });
   } catch (err) {
-    console.error("[Yahoo Quote] Error:", err.message);
+    console.error("[Quote] Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -41,8 +41,40 @@ const Dashboard = () => {
 
   // Debounce search query for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
-  const initialStockIds = useMemo(() => stocks.map((s) => s.id), []);
-  const stockMeta = useMemo(() => [...stocks, ...otcStocks], []);
+
+  // Benchmarks: market index (Yahoo symbols)
+  const benchmarkAssets = useMemo(
+    () => [
+      {
+        id: "^TWII",
+        symbol: "^TWII",
+        name_zh: "加權指數",
+        name_en: "TAIEX",
+        industry_zh: "市場指數",
+        industry_en: "Market Index",
+        growthScore: 0,
+        market: "INDEX",
+      },
+    ],
+    [],
+  );
+
+  const initialStockIds = useMemo(
+    () => [...benchmarkAssets.map((s) => s.id), ...stocks.map((s) => s.id)],
+    [benchmarkAssets],
+  );
+  const stockMeta = useMemo(
+    () => [...benchmarkAssets, ...stocks, ...otcStocks],
+    [benchmarkAssets],
+  );
+
+  // Seed placeholders so benchmarks show even before first fetch succeeds
+  useEffect(() => {
+    setLiveStocks((prev) => {
+      if (prev.length > 0) return prev;
+      return benchmarkAssets;
+    });
+  }, [benchmarkAssets]);
 
   const refreshData = useCallback(
     async (ids = null) => {
@@ -119,8 +151,21 @@ const Dashboard = () => {
 
   useEffect(() => {
     refreshData(initialStockIds);
-    // Faster refresh: 1.5 seconds (matches reduced cache TTL)
-    const interval = setInterval(() => refreshData(), 1500);
+
+    // Only refresh when the tab is visible to avoid wasted requests
+    const tick = () => {
+      if (document.visibilityState === "visible") {
+        refreshData();
+      }
+    };
+
+    const interval = setInterval(tick, 1500);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refreshData();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
 
     // Monitor network status
     const networkMonitor = getNetworkMonitor();
@@ -134,6 +179,7 @@ const Dashboard = () => {
 
     return () => {
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
       unsubscribe();
     };
   }, [initialStockIds, refreshData]);
@@ -260,6 +306,17 @@ const Dashboard = () => {
     setFilterGrowth(true);
   }, []);
 
+  // Extract market context (index only) for AI analysis
+  const marketContext = useMemo(() => {
+    const byId = new Map(liveStocks.map((s) => [s.id, s]));
+    const index = byId.get("^TWII") || null;
+
+    return {
+      index,
+      benchmarks: [index].filter(Boolean),
+    };
+  }, [liveStocks]);
+
   return (
     <>
       <section
@@ -381,16 +438,82 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* Benchmarks: Market Index */}
+        {marketContext.index ? (
+          <div className="mb-10 pb-8 border-b border-white/10">
+            <div
+              className={`p-5 md:p-8 rounded-3xl border-2 shadow-xl flex items-center justify-between transition-all ${
+                (marketContext.index.change || 0) >= 0
+                  ? "border-premium-success/30 bg-gradient-to-br from-premium-success/10 to-transparent"
+                  : "border-premium-loss/30 bg-gradient-to-br from-premium-loss/10 to-transparent"
+              }`}
+            >
+              <div className="space-y-2">
+                <p className="text-xs md:text-sm uppercase tracking-[0.3em] text-slate-400 font-black">
+                  市場指數
+                </p>
+                <p className="text-2xl md:text-4xl font-black text-white leading-tight">
+                  {marketContext.index.name_zh || marketContext.index.name_en}
+                </p>
+                <p className="text-slate-400 text-xs md:text-sm font-mono">
+                  {marketContext.index.symbol}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-mono text-4xl md:text-5xl font-black text-white leading-none">
+                  {marketContext.index.price ?? "--"}
+                </p>
+                <p
+                  className={`mt-3 inline-flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl text-base md:text-lg font-black border-2 ${
+                    (marketContext.index.change || 0) >= 0
+                      ? "text-premium-success border-premium-success/50 bg-premium-success/10"
+                      : "text-premium-loss border-premium-loss/50 bg-premium-loss/10"
+                  }`}
+                >
+                  {(marketContext.index.change || 0) >= 0 ? "▲" : "▼"}
+                  {Math.abs(marketContext.index.change || 0).toFixed(2)}%
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : isLoading ? (
+          <div className="mb-10 pb-8 border-b border-white/10">
+            <div className="p-5 md:p-8 rounded-3xl border border-white/10 bg-slate-900/50 shadow-lg animate-pulse flex items-center justify-between">
+              <div className="space-y-2 w-full">
+                <div className="h-3 w-32 bg-white/10 rounded"></div>
+                <div className="h-6 w-48 bg-white/10 rounded"></div>
+                <div className="h-3 w-32 bg-white/10 rounded"></div>
+              </div>
+              <div className="text-right">
+                <div className="h-10 w-24 bg-white/10 rounded ml-auto"></div>
+                <div className="h-6 w-20 bg-white/10 rounded mt-3 ml-auto"></div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <motion.div
           layout
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-10 lg:gap-12 min-h-[400px]"
         >
           <AnimatePresence mode="popLayout">
-            {displayedStocks.map((stock) => (
-              <div key={stock.id} className="w-full h-full flex justify-center">
-                <StockCard stock={stock} onClick={handleStockClick} />
-              </div>
-            ))}
+            {displayedStocks.length === 0 && isLoading
+              ? Array.from({ length: 8 }).map((_, idx) => (
+                  <div
+                    key={`skel-${idx}`}
+                    className="w-full h-full flex justify-center"
+                  >
+                    <div className="w-full h-[220px] rounded-2xl border border-white/10 bg-slate-900/50 animate-pulse"></div>
+                  </div>
+                ))
+              : displayedStocks.map((stock) => (
+                  <div
+                    key={stock.id}
+                    className="w-full h-full flex justify-center"
+                  >
+                    <StockCard stock={stock} onClick={handleStockClick} />
+                  </div>
+                ))}
           </AnimatePresence>
         </motion.div>
 
@@ -403,7 +526,11 @@ const Dashboard = () => {
         )}
       </section>
 
-      <StockDetailModal stock={selectedStock} onClose={handleCloseModal} />
+      <StockDetailModal
+        stock={selectedStock}
+        onClose={handleCloseModal}
+        marketContext={marketContext}
+      />
     </>
   );
 };

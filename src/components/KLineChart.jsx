@@ -1,107 +1,103 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
+import { fetchHistoricalOHLC } from "../services/klineDataService";
 
-const KLineChart = ({
-  stock,
-  data,
-  height = 500,
-  chartType = "candlestick",
-}) => {
-  const chartContainerRef = useRef();
+/**
+ * Full K-Line Chart with candlestick display
+ */
+const KLineChart = ({ stock, height = 500 }) => {
+  const containerRef = useRef(null);
   const chartRef = useRef(null);
+  const [chartData, setChartData] = useState([]);
 
+  // Fetch data
   useEffect(() => {
-    if (!chartContainerRef.current || !data || data.length === 0) return;
+    if (!stock?.id) return;
 
-    try {
-      // Ensure container has proper dimensions
-      const container = chartContainerRef.current;
-      const containerWidth = container.clientWidth || 800;
-      const containerHeight = height || 500;
-
-      const chart = createChart(container, {
-        layout: {
-          background: { color: "#1e293b" },
-          textColor: "#9ca3af",
-        },
-        width: containerWidth,
-        height: containerHeight,
-        timeScale: {
-          fixLeftEdge: true,
-          fixRightEdge: true,
-        },
-      });
-
-      chartRef.current = chart;
-
-      // Filter and validate data
-      const validData = data.filter((d) => {
-        if (!d || d.time == null) return false;
-        const values = [d.open, d.high, d.low, d.close];
-        return values.every((v) => typeof v === "number" && Number.isFinite(v));
-      });
-
-      if (validData.length === 0) {
-        console.warn("[KLineChart] No valid data to display");
-        chart.remove();
-        return;
-      }
-
-      if (chartType === "candlestick") {
-        const series = chart.addCandlestickSeries({
-          upColor: "#22c55e",
-          downColor: "#ef4444",
-          wickUpColor: "#22c55e",
-          wickDownColor: "#ef4444",
-          borderUpColor: "#22c55e",
-          borderDownColor: "#ef4444",
-        });
-        series.setData(validData);
-      } else {
-        const series = chart.addAreaSeries({
-          lineColor: "#38bdf8",
-          topColor: "rgba(56, 189, 248, 0.4)",
-          bottomColor: "rgba(56, 189, 248, 0)",
-          lineWidth: 2,
-        });
-        series.setData(
-          validData.map((d) => ({ time: d.time, value: d.close })),
-        );
-      }
-
-      chart.timeScale().fitContent();
-
-      const handleResize = () => {
-        if (chartRef.current && chartContainerRef.current) {
-          const newWidth = chartContainerRef.current.clientWidth || 800;
-          chartRef.current.applyOptions({
-            width: newWidth,
-          });
+    const fetchData = async () => {
+      try {
+        const data = await fetchHistoricalOHLC(stock.id, "3mo", "1d");
+        if (data && data.length > 0) {
+          setChartData(data);
         }
-      };
+      } catch (err) {
+        console.error(`Chart data fetch failed for ${stock.symbol}:`, err);
+      }
+    };
 
-      window.addEventListener("resize", handleResize);
+    fetchData();
+  }, [stock?.id]);
 
-      return () => {
-        window.removeEventListener("resize", handleResize);
-        if (chartRef.current) {
-          try {
-            chartRef.current.remove();
-          } catch (e) {
-            console.warn("Error removing chart:", e);
-          }
-        }
-      };
-    } catch (err) {
-      console.error("Chart rendering error:", err);
-    }
-  }, [data, height, chartType]);
+  // Create and render chart
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const container = containerRef.current;
+    const chart = createChart(container, {
+      layout: {
+        background: { color: "#0f172a" },
+        textColor: "#cbd5e1",
+      },
+      width: container.clientWidth || 820,
+      height,
+      timeScale: {
+        borderColor: "#1f2937",
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      grid: {
+        vertLines: { color: "#1f2937" },
+        horzLines: { color: "#1f2937" },
+      },
+      crosshair: { mode: 1 },
+    });
+
+    chartRef.current = chart;
+
+    const resize = () => {
+      if (chartRef.current && containerRef.current) {
+        chartRef.current.applyOptions({
+          width: containerRef.current.clientWidth || 820,
+        });
+      }
+    };
+
+    window.addEventListener("resize", resize);
+
+    return () => {
+      window.removeEventListener("resize", resize);
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+      }
+    };
+  }, [height]);
+
+  // Update chart data
+  useEffect(() => {
+    if (!chartRef.current || !chartData.length) return;
+
+    const series = chartRef.current.addCandlestickSeries({
+      upColor: "#22c55e",
+      downColor: "#ef4444",
+      wickUpColor: "#22c55e",
+      wickDownColor: "#ef4444",
+      borderUpColor: "#22c55e",
+      borderDownColor: "#ef4444",
+    });
+
+    series.setData(chartData);
+    chartRef.current.timeScale().fitContent();
+  }, [chartData]);
 
   return (
     <div
-      ref={chartContainerRef}
-      className="w-full h-full"
-      style={{ minHeight: `${height}px` }}
+      ref={containerRef}
+      className="w-full rounded-2xl bg-slate-950/90 relative overflow-hidden"
+      style={{
+        height: `${height}px`,
+        minHeight: `${height}px`,
+      }}
     />
   );
 };

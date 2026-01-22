@@ -2,46 +2,29 @@ import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getAISuggestion } from "../services/aiAnalysis";
 import { useLanguage } from "../context/LanguageContext";
-import KLineChart from "./KLineChart";
-import { fetchHistoricalOHLC } from "../services/klineDataService";
+import { fetchTechnicalIndicators } from "../services/technicalIndicatorsService";
+import TechnicalAnalysisDashboard from "./TechnicalAnalysisDashboard";
 
-const StockDetailModal = ({ stock, onClose }) => {
+const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
   const { t, lang } = useLanguage();
-  const [chartType, setChartType] = useState("candlestick");
-  const [klineData, setKlineData] = useState(null);
-  const [isLoadingKline, setIsLoadingKline] = useState(false);
-  const [klineError, setKlineError] = useState(null);
+  const [technicalData, setTechnicalData] = useState(null);
 
-  // Fetch real OHLC data for K-line chart
+  // Fetch technical indicators
   useEffect(() => {
-    if (!stock || !stock.id) return;
+    if (!stock?.id) return;
 
-    const fetchKlineData = async () => {
-      setIsLoadingKline(true);
-      setKlineError(null);
-
+    const fetchData = async () => {
       try {
-        const realData = await fetchHistoricalOHLC(stock.id, "1mo", "1d");
-        if (realData && realData.length > 0) {
-          setKlineData(realData);
-        } else {
-          throw new Error("No k-line data available from real API");
+        const data = await fetchTechnicalIndicators(stock.id, "3mo", "1d");
+        if (data?.indicators) {
+          setTechnicalData(data.indicators);
         }
       } catch (err) {
-        setKlineError(
-          `Failed to load K-line data: ${err.message}. Please try again.`,
-        );
-        setKlineData(null);
-
-        if (err.message.includes("fetch") || err.message.includes("timeout")) {
-          setTimeout(() => fetchKlineData(), 3000);
-        }
-      } finally {
-        setIsLoadingKline(false);
+        console.error("Error fetching technical indicators:", err);
       }
     };
 
-    fetchKlineData();
+    fetchData();
   }, [stock?.id]);
 
   // Lock body scroll when modal is open
@@ -54,11 +37,11 @@ const StockDetailModal = ({ stock, onClose }) => {
     }
   }, [stock]);
 
-  // Memoize AI suggestion
+  // Memoize AI suggestion with technical indicators
   const ai = useMemo(() => {
     if (!stock) return null;
-    return getAISuggestion(stock, lang);
-  }, [stock, lang]);
+    return getAISuggestion(stock, lang, technicalData, marketContext);
+  }, [stock, lang, technicalData, marketContext]);
 
   if (!stock) return null;
 
@@ -115,7 +98,15 @@ const StockDetailModal = ({ stock, onClose }) => {
                   {t("quoteLabel")}
                 </p>
                 <div className="flex items-baseline gap-2 md:gap-5">
-                  <span className="text-3xl md:text-5xl lg:text-7xl font-mono font-black text-white leading-none tracking-tighter">
+                  <span
+                    className={`font-mono font-black text-white leading-none tracking-tighter overflow-hidden text-ellipsis ${
+                      stock.price > 9999
+                        ? "text-2xl md:text-4xl lg:text-5xl"
+                        : stock.price > 999
+                          ? "text-3xl md:text-5xl lg:text-6xl"
+                          : "text-3xl md:text-5xl lg:text-7xl"
+                    }`}
+                  >
                     NT${stock.price}
                   </span>
                   <span
@@ -129,112 +120,59 @@ const StockDetailModal = ({ stock, onClose }) => {
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto p-6 md:p-10 lg:p-14 custom-scrollbar space-y-10 md:space-y-16">
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 md:gap-16">
+          <div className="flex-1 overflow-y-auto p-7 md:p-12 lg:p-16 custom-scrollbar space-y-12 md:space-y-20">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-12 md:gap-16 lg:gap-20">
               {/* Left (Chart & Analysis) */}
               <div className="xl:col-span-8 space-y-10 md:space-y-16">
-                <div className="space-y-6 md:space-y-8">
-                  <div className="flex items-center justify-between">
+                <div className="space-y-7 md:space-y-10">
+                  <div className="flex items-center gap-4">
                     <h4 className="text-white text-[11px] md:text-xs font-black tracking-[0.2em] md:tracking-[0.3em] uppercase flex items-center gap-3 md:gap-4">
-                      <span className="relative flex h-2 md:h-3 w-2 md:w-3">
+                      <span className="relative flex h-2.5 md:h-3 w-2.5 md:w-3">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-premium-accent opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 md:h-3 w-2 md:w-3 bg-premium-accent"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 md:h-3 w-2.5 md:w-3 bg-premium-accent"></span>
                       </span>
-                      {t("klineTitle")}
+                      {t("technical") || "Technical Analysis"}
                     </h4>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setChartType("candlestick")}
-                        className={`px-3 py-1 rounded text-xs font-bold transition-all ${
-                          chartType === "candlestick"
-                            ? "bg-premium-accent text-white"
-                            : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                        }`}
-                      >
-                        K-Line
-                      </button>
-                      <button
-                        onClick={() => setChartType("area")}
-                        className={`px-3 py-1 rounded text-xs font-bold transition-all ${
-                          chartType === "area"
-                            ? "bg-premium-accent text-white"
-                            : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                        }`}
-                      >
-                        Area
-                      </button>
-                    </div>
                   </div>
-                  <div className="bg-slate-900/50 rounded-2xl md:rounded-[3rem] p-3 md:p-4 border border-white/5 shadow-inner h-[300px] md:h-[500px] lg:h-[600px]">
-                    {isLoadingKline ? (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-center">
-                          <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-700 border-t-premium-accent mx-auto mb-3"></div>
-                          <p className="text-slate-400 text-sm">
-                            {t("loading")}
-                          </p>
-                        </div>
-                      </div>
-                    ) : klineError ? (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-center">
-                          <p className="text-red-400 text-sm mb-2">
-                            ⚠️ K-Line Data Error
-                          </p>
-                          <p className="text-slate-500 text-xs">{klineError}</p>
-                        </div>
-                      </div>
-                    ) : klineData && klineData.length > 0 ? (
-                      <KLineChart
-                        stock={stock}
-                        data={klineData}
-                        height={500}
-                        chartType={chartType}
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <p className="text-slate-500 text-sm">
-                          No k-line data available
-                        </p>
-                      </div>
-                    )}
+                  <div className="bg-slate-900/60 rounded-2xl md:rounded-3xl p-6 md:p-8 lg:p-10 border border-white/8 shadow-inner w-full overflow-hidden">
+                    <TechnicalAnalysisDashboard stock={stock} height={600} />
                   </div>
                 </div>
 
                 {/* Institutional Panel */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-                  <div className="p-6 md:p-8 bg-gradient-to-br from-white/5 to-transparent rounded-2xl md:rounded-[2.5rem] border border-white/5 group hover:border-premium-accent/40 transition-all shadow-xl">
-                    <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-4 md:mb-6 flex items-center gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-7 md:gap-10 lg:gap-12">
+                  <div className="p-6 md:p-8 lg:p-10 bg-gradient-to-br from-white/8 to-transparent rounded-2xl md:rounded-3xl border border-white/10 group hover:border-premium-accent/50 transition-all shadow-2xl">
+                    <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-5 md:mb-7 flex items-center gap-3">
                       🏢 {t("investors")}
                     </p>
                     <p
-                      className={`text-2xl md:text-3xl font-mono font-black ${ai.institutional.investors.startsWith("+") ? "text-premium-success" : "text-premium-loss"}`}
+                      className={`text-2xl md:text-3xl lg:text-4xl font-mono font-black leading-tight ${ai.institutional.investors.startsWith("+") ? "text-premium-success" : "text-premium-loss"}`}
                     >
                       {ai.institutional.investors}
                     </p>
                   </div>
-                  <div className="p-6 md:p-8 bg-gradient-to-br from-white/5 to-transparent rounded-2xl md:rounded-[2.5rem] border border-white/5 group hover:border-premium-accent/40 transition-all shadow-xl">
-                    <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-4 md:mb-6 flex items-center gap-3">
+                  <div className="p-6 md:p-8 lg:p-10 bg-gradient-to-br from-white/8 to-transparent rounded-2xl md:rounded-3xl border border-white/10 group hover:border-premium-accent/50 transition-all shadow-2xl">
+                    <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-5 md:mb-7 flex items-center gap-3">
                       📊 {t("margin")}
                     </p>
-                    <p className="text-2xl md:text-3xl font-mono font-black text-premium-accent">
+                    <p className="text-2xl md:text-3xl lg:text-4xl font-mono font-black text-premium-accent leading-tight">
                       {ai.institutional.margin}
                     </p>
                   </div>
-                  <div className="p-6 md:p-8 bg-gradient-to-br from-white/5 to-transparent rounded-2xl md:rounded-[2.5rem] border border-white/5 group hover:border-premium-accent/40 transition-all shadow-xl">
-                    <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-4 md:mb-6 flex items-center gap-3">
+                  <div className="p-6 md:p-8 lg:p-10 bg-gradient-to-br from-white/8 to-transparent rounded-2xl md:rounded-3xl border border-white/10 group hover:border-premium-accent/50 transition-all shadow-2xl">
+                    <p className="text-slate-500 text-[10px] md:text-[11px] font-black uppercase tracking-widest mb-5 md:mb-7 flex items-center gap-3">
                       ⚡ {t("dayTrade")}
                     </p>
-                    <p className="text-2xl md:text-3xl font-mono font-black text-premium-warning">
+                    <p className="text-2xl md:text-3xl lg:text-4xl font-mono font-black text-premium-warning leading-tight">
                       {ai.institutional.dayTrade}
                     </p>
                   </div>
                 </div>
 
-                <div className="p-6 md:p-10 bg-gradient-to-br from-slate-800/60 to-slate-900/40 text-white rounded-2xl md:rounded-[3rem] border border-white/10 space-y-6 md:space-y-8 shadow-2xl relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-premium-accent group-hover:w-2 transition-all"></div>
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-0">
-                    <h4 className="text-premium-accent font-black text-xs md:text-sm uppercase tracking-[0.15em] md:tracking-[0.2em] flex items-center gap-3 md:gap-4">
+                <div className="p-7 md:p-12 bg-gradient-to-br from-slate-800/70 to-slate-900/50 text-white rounded-2xl md:rounded-3xl border border-white/12 space-y-8 md:space-y-10 shadow-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-premium-accent group-hover:w-2 transition-all"></div>
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 md:gap-8">
+                    <h4 className="text-premium-accent font-black text-xs md:text-sm uppercase tracking-[0.15em] md:tracking-[0.2em] flex items-center gap-3 md:gap-4 leading-tight">
                       <svg
                         className="w-5 md:w-6 h-5 md:h-6"
                         fill="currentColor"
@@ -244,27 +182,29 @@ const StockDetailModal = ({ stock, onClose }) => {
                       </svg>
                       {t("buyReason")}
                     </h4>
-                    <span className="px-3 md:px-5 py-1 md:py-2 bg-white/10 text-white rounded-lg md:rounded-2xl text-[10px] md:text-xs font-black tracking-[0.15em] md:tracking-widest uppercase border border-white/10 backdrop-blur-md">
+                    <span className="px-4 md:px-6 py-1.5 md:py-2.5 bg-white/15 text-white rounded-lg md:rounded-2xl text-[10px] md:text-xs font-black tracking-[0.15em] md:tracking-widest uppercase border border-white/20 backdrop-blur-md">
                       {ai.action}
                     </span>
                   </div>
-                  <p className="text-slate-200 text-sm md:text-lg leading-relaxed font-bold tracking-tight">
+                  <p className="text-slate-200 text-sm md:text-base lg:text-lg leading-relaxed font-bold tracking-tight">
                     {ai.detailedReason}
                   </p>
-                  <div className="flex flex-col md:flex-row gap-4 md:gap-6 pt-6 md:pt-8 border-t border-white/5">
-                    {Object.entries(ai.indicators).map(([key, val]) => (
-                      <div
-                        key={key}
-                        className="flex-1 p-4 md:p-6 bg-slate-900/60 rounded-lg md:rounded-[2rem] border border-white/5 shadow-inner"
-                      >
-                        <p className="text-slate-500 text-[9px] md:text-[10px] uppercase mb-2 font-black tracking-[0.15em] md:tracking-[0.2em]">
-                          {t(`indicators.${key}`)}
-                        </p>
-                        <p className="text-white text-xs md:text-sm font-black tracking-tight">
-                          {val}
-                        </p>
-                      </div>
-                    ))}
+                  <div className="flex flex-col md:flex-row gap-5 md:gap-7 pt-8 md:pt-10 border-t border-white/10">
+                    {Object.entries(ai.indicators)
+                      .filter(([key]) => key !== "signalAlignment")
+                      .map(([key, val]) => (
+                        <div
+                          key={key}
+                          className="flex-1 p-5 md:p-7 bg-slate-900/70 rounded-xl md:rounded-2xl border border-white/10 shadow-inner"
+                        >
+                          <p className="text-slate-400 text-[9px] md:text-[10px] uppercase mb-3 font-black tracking-[0.15em] md:tracking-[0.2em]">
+                            {t(`indicators.${key}`)}
+                          </p>
+                          <p className="text-white text-xs md:text-sm lg:text-base font-black tracking-tight leading-tight">
+                            {val}
+                          </p>
+                        </div>
+                      ))}
                   </div>
                 </div>
               </div>
@@ -293,7 +233,7 @@ const StockDetailModal = ({ stock, onClose }) => {
                         <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
                           {t("targetPrice")}
                         </p>
-                        <p className="text-premium-success text-lg md:text-2xl font-black font-mono">
+                        <p className="text-premium-success text-base md:text-lg font-black font-mono">
                           NT${ai.strategies.aggressive.targetPrice}
                         </p>
                       </div>
@@ -301,7 +241,7 @@ const StockDetailModal = ({ stock, onClose }) => {
                         <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
                           {t("stopLoss")}
                         </p>
-                        <p className="text-premium-loss text-lg md:text-2xl font-black font-mono">
+                        <p className="text-premium-loss text-base md:text-lg font-black font-mono">
                           NT${ai.strategies.aggressive.stopLoss}
                         </p>
                       </div>
@@ -328,7 +268,7 @@ const StockDetailModal = ({ stock, onClose }) => {
                         <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
                           {t("targetPrice")}
                         </p>
-                        <p className="text-premium-success text-lg md:text-2xl font-black font-mono">
+                        <p className="text-premium-success text-base md:text-lg font-black font-mono">
                           NT${ai.strategies.conservative.targetPrice}
                         </p>
                       </div>
@@ -336,7 +276,7 @@ const StockDetailModal = ({ stock, onClose }) => {
                         <p className="text-slate-500 text-[9px] md:text-xs mb-1 md:mb-2">
                           {t("stopLoss")}
                         </p>
-                        <p className="text-premium-loss text-lg md:text-2xl font-black font-mono">
+                        <p className="text-premium-loss text-base md:text-lg font-black font-mono">
                           NT${ai.strategies.conservative.stopLoss}
                         </p>
                       </div>

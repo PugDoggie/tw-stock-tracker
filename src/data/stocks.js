@@ -235,6 +235,14 @@ export const stocks = [
     growthScore: 71,
   },
   {
+    id: "1609",
+    name_zh: "大亞",
+    name_en: "Ta Ya",
+    industry_zh: "傳動",
+    industry_en: "Power Transmission",
+    growthScore: 62,
+  },
+  {
     id: "3034",
     name_zh: "聯詠",
     name_en: "Novatek",

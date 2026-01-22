@@ -3,7 +3,8 @@
  * Priority Strategy:
  * 1. Local proxy server (localhost:3001)
  * 2. Direct TWSE API (with CORS workaround)
- * 3. Fallback mock data ONLY if both fail
+ * 3. Yahoo Finance proxy
+ * (No mock fallback; errors bubble so UI shows failure)
  */
 
 import {
@@ -12,6 +13,11 @@ import {
   otcStocks,
   searchableStocks,
 } from "../data/stocks";
+
+// Predefined symbols that should NOT append TW/TWO suffix (index only)
+const SPECIAL_SYMBOL_MAP = {
+  "^TWII": "^TWII", // TAIEX 台灣加權指數
+};
 
 const isDev = import.meta.env.DEV;
 const requestCache = new Map();
@@ -22,129 +28,45 @@ const round2 = (n) => (Number.isFinite(n) ? Number(n.toFixed(2)) : 0);
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 
-// Mock data fallback for when all real APIs fail
-// Updated with realistic January 2026 Taiwan stock prices
-const FALLBACK_STOCK_DATA = {
-  2330: {
-    id: "2330",
-    name: "台積電",
-    price: 945.0,
-    change: -0.53,
-    high: 950,
-    low: 940,
-    volume: 65432100,
-    openPrice: 950,
-    isFallback: true,
-  },
-  2317: {
-    id: "2317",
-    name: "鴻海",
-    price: 215.5,
-    change: 1.12,
-    high: 218,
-    low: 213,
-    volume: 42156000,
-    openPrice: 213,
-    isFallback: true,
-  },
-  2376: {
-    id: "2376",
-    name: "技嘉",
-    price: 68.4,
-    change: 0.88,
-    high: 70,
-    low: 67,
-    volume: 28743000,
-    openPrice: 67,
-    isFallback: true,
-  },
-  2382: {
-    id: "2382",
-    name: "廣達",
-    price: 165.0,
-    change: 2.47,
-    high: 168,
-    low: 161,
-    volume: 31452000,
-    openPrice: 161,
-    isFallback: true,
-  },
-  2454: {
-    id: "2454",
-    name: "聯發科",
-    price: 1265.0,
-    change: 1.6,
-    high: 1280,
-    low: 1255,
-    volume: 54892000,
-    openPrice: 1245,
-    isFallback: true,
-  },
-  2603: {
-    id: "2603",
-    name: "長榮",
-    price: 18.65,
-    change: -0.8,
-    high: 19,
-    low: 18,
-    volume: 156432000,
-    openPrice: 18.85,
-    isFallback: true,
-  },
-  2891: {
-    id: "2891",
-    name: "中信金",
-    price: 32.25,
-    change: 1.25,
-    high: 33,
-    low: 31,
-    volume: 87654000,
-    openPrice: 31.85,
-    isFallback: true,
-  },
-  1101: {
-    id: "1101",
-    name: "台泥",
-    price: 52.1,
-    change: 0.77,
-    high: 53,
-    low: 51,
-    volume: 42135000,
-    openPrice: 51.7,
-    isFallback: true,
-  },
-  2303: {
-    id: "2303",
-    name: "聯電",
-    price: 155.0,
-    change: 1.31,
-    high: 157,
-    low: 152,
-    volume: 98754000,
-    openPrice: 153,
-    isFallback: true,
-  },
-  3711: {
-    id: "3711",
-    name: "日月光投控",
-    price: 68.5,
-    change: 0.44,
-    high: 70,
-    low: 67,
-    volume: 76543000,
-    openPrice: 68.2,
-    isFallback: true,
-  },
-};
+// Build market type map from stock data
+const stockMarketMap = new Map();
+stocks.forEach((s) => stockMarketMap.set(s.id, "TW"));
+otcStocks.forEach((s) => stockMarketMap.set(s.id, s.market || "TWO"));
 
 const OTC_ID_SET = new Set([...(otcStocks || []).map((s) => s.id)]);
 
 // Determine correct Yahoo Finance suffix for TW/TWO tickers
 const getYahooSymbol = (id) => {
   const cleanId = String(id).trim();
+
+  // Return raw symbol for special assets (indexes/futures)
+  if (SPECIAL_SYMBOL_MAP[cleanId]) return SPECIAL_SYMBOL_MAP[cleanId];
+
+  // Check market map first (most accurate), fall back to OTC_ID_SET for backwards compatibility
+  const market = stockMarketMap.get(cleanId);
   const suffix =
-    OTC_ID_SET.has(cleanId) || /^(6|8|9)/.test(cleanId) ? "TWO" : "TW";
+    market === "TWO" || (market === undefined && OTC_ID_SET.has(cleanId))
+      ? "TWO"
+      : "TW";
   return `${cleanId}.${suffix}`;
+};
+
+const getSymbolCandidates = (id) => {
+  const cleanId = String(id).trim();
+
+  // Check if this is a special symbol (index or futures) - return as-is
+  if (SPECIAL_SYMBOL_MAP[cleanId]) {
+    return [SPECIAL_SYMBOL_MAP[cleanId]];
+  }
+
+  // For known stocks, return single symbol
+  const market = stockMarketMap.get(cleanId);
+  if (market !== undefined) {
+    return [getYahooSymbol(id)];
+  }
+
+  // For unknown stocks, try both .TW and .TWO (system will auto-determine which works)
+  return [`${cleanId}.TW`, `${cleanId}.TWO`];
 };
 
 /**
@@ -153,14 +75,35 @@ const getYahooSymbol = (id) => {
  */
 const fetchFromProxyServer = async (stockIds) => {
   try {
-    const tseQuery = stockIds.map((id) => `tse_${id}.tw`).join("|");
-    const otcQuery = stockIds.map((id) => `otc_${id}.tw`).join("|");
-    const emcQuery = stockIds.map((id) => `emc_${id}.tw`).join("|");
+    // Separate regular stocks from futures
+    const regularStocks = [];
+    const futures = [];
+
+    stockIds.forEach((id) => {
+      if (SPECIAL_SYMBOL_MAP[id]) {
+        futures.push(id);
+      } else {
+        regularStocks.push(id);
+      }
+    });
+
+    // Build query for regular stocks
+    if (regularStocks.length === 0) {
+      // Only futures requested; these are handled via Yahoo
+      return [];
+    }
+
+    const tseQuery = regularStocks.map((id) => `tse_${id}.tw`).join("|");
+    const otcQuery = regularStocks.map((id) => `otc_${id}.tw`).join("|");
+    const emcQuery = regularStocks.map((id) => `emc_${id}.tw`).join("|");
     const query = `${tseQuery}|${otcQuery}|${emcQuery}`;
 
     const url = `${API_BASE_URL}/api/twse?ex_ch=${encodeURIComponent(query)}`;
 
-    if (isDev) console.log(`[Proxy] Fetching ${stockIds.length} stocks...`);
+    if (isDev)
+      console.log(
+        `[Proxy] Fetching ${stockIds.length} stocks (${regularStocks.length} regular + ${futures.length} futures)...`,
+      );
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -252,17 +195,47 @@ const fetchFromTWSEDirect = async (stockIds) => {
 
 /**
  * Fetch Yahoo quotes via local proxy (avoids browser CORS).
+ * Handles both regular stocks and futures (WTX&, WMT&, WTM&).
  */
 const fetchFromYahooTaiwan = async (stockIds) => {
   try {
-    if (isDev) console.log(`[Yahoo] Fetching ${stockIds.length} stocks...`);
+    // All symbols go through Yahoo now (includes futures)
+    const allIds = stockIds;
+
+    if (allIds.length === 0) {
+      if (isDev) console.log(`[Yahoo] No symbols to fetch`);
+      return null;
+    }
+
+    if (isDev)
+      console.log(
+        `[Yahoo] Fetching ${allIds.length} symbols (${allIds.join(", ")})...`,
+      );
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    // Fetch all stocks in one batch call with correct market suffix
-    const symbols = stockIds.map((id) => getYahooSymbol(id)).join(",");
+    // Build symbol list - no fallbacks anymore
+    const symbolsList = [];
+    const symbolToIds = new Map();
+
+    allIds.forEach((id) => {
+      const candidates = getSymbolCandidates(id);
+      candidates.forEach((sym) => {
+        if (!symbolsList.includes(sym)) {
+          symbolsList.push(sym);
+          symbolToIds.set(sym, []);
+        }
+        // Track which requested ID this symbol maps to
+        symbolToIds.get(sym).push(id);
+      });
+    });
+
+    const symbols = symbolsList.join(",");
     const url = `${API_BASE_URL}/api/yahoo/quote?symbols=${encodeURIComponent(symbols)}`;
+
+    if (isDev)
+      console.log(`[Yahoo] Requesting symbols: ${symbolsList.join(", ")}`);
 
     const response = await fetch(url, {
       method: "GET",
@@ -286,8 +259,19 @@ const fetchFromYahooTaiwan = async (stockIds) => {
       data?.quoteResponse?.result &&
       Array.isArray(data.quoteResponse.result)
     ) {
-      const results = data.quoteResponse.result.map((item) => {
-        const stockId = item.symbol.replace(".TW", "").replace(".TWO", "");
+      const results = [];
+      const processedIds = new Set();
+
+      data.quoteResponse.result.forEach((item) => {
+        // Get list of requested IDs this symbol maps to
+        const rawSymbol = item.symbol || "";
+        const requestedIds = symbolToIds.get(rawSymbol) || [];
+
+        if (!requestedIds || requestedIds.length === 0) {
+          if (isDev) console.warn(`[Yahoo] Symbol ${rawSymbol} not in mapping`);
+          return;
+        }
+
         const rawPrice = item.regularMarketPrice || item.ask || item.bid || 0;
         const price = round2(rawPrice);
         const previousClose = round2(item.regularMarketPreviousClose || price);
@@ -296,10 +280,9 @@ const fetchFromYahooTaiwan = async (stockIds) => {
             ? round2(((price - previousClose) / previousClose) * 100)
             : 0;
 
-        return {
-          id: stockId,
-          name: item.longName || item.shortName || stockId,
-          symbol: item.symbol,
+        const stockData = {
+          name: item.longName || item.shortName || "",
+          symbol: rawSymbol,
           price,
           change,
           high: round2(item.regularMarketDayHigh || price),
@@ -310,10 +293,28 @@ const fetchFromYahooTaiwan = async (stockIds) => {
           isLive: true,
           sourceAPI: "Yahoo Finance",
         };
+
+        // Create result entry for each requested ID using this symbol
+        requestedIds.forEach((stockId) => {
+          if (!processedIds.has(stockId)) {
+            processedIds.add(stockId);
+            results.push({
+              id: stockId,
+              ...stockData,
+            });
+            if (isDev)
+              console.log(
+                `[Yahoo] ${stockId} (${rawSymbol}): $${price} (${change > 0 ? "+" : ""}${change}%)`,
+              );
+          }
+        });
       });
 
       if (results.length > 0) {
-        if (isDev) console.log(`[Yahoo] Got ${results.length} items`);
+        if (isDev)
+          console.log(
+            `[Yahoo] Got ${results.length} items from ${data.quoteResponse.result.length} quotes`,
+          );
         return results;
       }
     }
@@ -328,9 +329,11 @@ const fetchFromYahooTaiwan = async (stockIds) => {
 /**
  * Parse TWSE API response data
  * Extract real-time stock prices with proper validation
+ * Handles both regular stocks and futures contracts
  */
 const parseStockData = (msgArray) => {
   const seen = new Set();
+
   return msgArray
     .filter((item) => {
       if (!item?.c || !item?.n) return false;
@@ -371,49 +374,6 @@ const parseStockData = (msgArray) => {
       }
     })
     .filter(Boolean); // Remove null entries
-};
-
-/**
- * Fallback: Generate mock data when all real APIs fail
- * This ensures the app still works for UI testing
- */
-const generateFallbackData = (stockIds) => {
-  console.warn(
-    `[FALLBACK] All real API sources failed. Using mock data for: ${stockIds.join(", ")}`,
-  );
-
-  return stockIds
-    .map((id) => {
-      if (FALLBACK_STOCK_DATA[id]) {
-        return {
-          ...FALLBACK_STOCK_DATA[id],
-          symbol: `${id}.TW`,
-          timestamp: Date.now(),
-          isLive: false,
-          isFallback: true,
-        };
-      }
-      // Generate random mock data for unknown stocks
-      const basePrice = 50 + Math.random() * 500;
-      const change = (Math.random() - 0.5) * 4;
-      return {
-        id: id,
-        name: `Stock ${id}`,
-        symbol: `${id}.TW`,
-        price: parseFloat(basePrice.toFixed(2)),
-        change: parseFloat(change.toFixed(2)),
-        high: parseFloat((basePrice * 1.02).toFixed(2)),
-        low: parseFloat((basePrice * 0.98).toFixed(2)),
-        volume: Math.floor(Math.random() * 50000000),
-        openPrice: parseFloat(
-          (basePrice - (change / 100) * basePrice).toFixed(2),
-        ),
-        timestamp: Date.now(),
-        isLive: false,
-        isFallback: true,
-      };
-    })
-    .filter(Boolean);
 };
 
 // Search TW/TWO stocks via Yahoo Finance search API
@@ -482,14 +442,14 @@ export const searchTaiwanStocks = async (query) => {
 };
 
 /**
- * Main export: Fetch live stock data with multiple fallback strategies
- *
- * Priority (NO MOCK DATA):
- * 1. ✅ Use cached data if fresh (< 800ms)
- * 2. 🟣 Try Yahoo Taiwan API (PRIMARY - from tw.stock.yahoo.com)
- * 3. 🌐 Try proxy server (fallback)
- * 4. 🌍 Try direct TWSE API (fallback)
- * 5. ❌ Throw error (NO mock data)
+ * Main export: Fetch live stock data (real-time only)
+
+ * Priority (live-only, no demo data):
+ * 1. ??Use cached data if fresh (< 800ms)
+ * 2. ?�� Try Yahoo Taiwan API (PRIMARY - from tw.stock.yahoo.com)
+ * 3. ?? Try proxy server (fallback)
+ * 4. ?? Try direct TWSE API (fallback)
+ * 5. ??Throw error (no mock data)
  */
 export const fetchLiveStockData = async (stockIds) => {
   if (!stockIds || stockIds.length === 0) return [];
@@ -502,18 +462,37 @@ export const fetchLiveStockData = async (stockIds) => {
     const cacheAge = Date.now() - cached.timestamp;
 
     if (cacheAge < CACHE_TTL) {
-      if (isDev) console.log(`⚡ [Cache] ${Math.round(cacheAge)}ms old`);
+      if (isDev) console.log(`??[Cache] ${Math.round(cacheAge)}ms old`);
       return cached.data;
     } else if (cacheAge < 3000 && cached.data[0]?.isLive) {
-      if (isDev) console.log(`⚡ [Cache] Stale, fetching new...`);
-      fetchLiveStockData(stockIds).catch((err) => {
-        if (isDev) console.error("Background fetch failed:", err);
-      });
+      if (isDev)
+        console.log(
+          `??[Cache] Stale, returning cached while refreshing in background...`,
+        );
+      // Background refresh - do NOT recursively call fetchLiveStockData to avoid stack overflow
+      // Instead, directly call the fetch strategies
+      Promise.all([
+        fetchFromYahooTaiwan(stockIds).catch(() => null),
+        fetchFromProxyServer(stockIds).catch(() => null),
+      ])
+        .then((results) => {
+          const freshData = results.find((r) => r && r.length > 0);
+          if (freshData && freshData.length > 0) {
+            requestCache.set(cacheKey, {
+              data: freshData,
+              timestamp: Date.now(),
+            });
+            if (isDev) console.log(`??[Cache] Updated with fresh data`);
+          }
+        })
+        .catch((err) => {
+          if (isDev) console.error("Background fetch failed:", err);
+        });
       return cached.data;
     }
   }
 
-  // Strategy 2: Try Yahoo FIRST (PRIMARY SOURCE)
+  // Strategy 2: Try Yahoo Taiwan API (now handles all symbols including futures)
   let liveData = await fetchFromYahooTaiwan(stockIds);
 
   // Strategy 3: Try proxy server if Yahoo fails
@@ -528,15 +507,15 @@ export const fetchLiveStockData = async (stockIds) => {
     liveData = await fetchFromTWSEDirect(stockIds);
   }
 
-  // Strategy 5: Use fallback mock data when all real APIs fail
+  // Strategy 5: If all live sources fail, throw so UI can surface the error
   if (!liveData || liveData.length === 0) {
-    liveData = generateFallbackData(stockIds);
+    throw new Error(
+      "No live data available (Yahoo / Proxy / TWSE all failed). Please retry.",
+    );
   }
 
   // Cache the result
-  if (liveData && liveData.length > 0) {
-    requestCache.set(cacheKey, { data: liveData, timestamp: Date.now() });
-  }
+  requestCache.set(cacheKey, { data: liveData, timestamp: Date.now() });
 
   return liveData;
 };
