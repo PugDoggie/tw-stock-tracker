@@ -16,12 +16,17 @@ const SPECIAL_SYMBOL_MAP = {
   "WTM&": "WTM&", // 微型台指期
 };
 
-const getYahooSymbol = (id) => {
+const getSymbolCandidates = (id) => {
   const cleanId = String(id).trim();
-  if (SPECIAL_SYMBOL_MAP[cleanId]) return SPECIAL_SYMBOL_MAP[cleanId];
+  if (SPECIAL_SYMBOL_MAP[cleanId]) return [SPECIAL_SYMBOL_MAP[cleanId]];
+
   const market = stockMarketMap.get(cleanId);
-  const suffix = market === "TWO" ? "TWO" : "TW";
-  return `${cleanId}.${suffix}`;
+  if (market) {
+    return [`${cleanId}.${market === "TWO" ? "TWO" : "TW"}`];
+  }
+
+  // Unknown/newly listed: try both TW and TWO to avoid manual upkeep
+  return [`${cleanId}.TW`, `${cleanId}.TWO`];
 };
 
 /**
@@ -283,13 +288,16 @@ export const fetchTechnicalIndicators = async (
   stockId,
   period = "3mo",
   interval = "1d",
+  retryCount = 0,
+  candidateIndex = 0,
 ) => {
-  const symbol = getYahooSymbol(stockId);
+  const candidates = getSymbolCandidates(stockId);
+  const symbol = candidates[Math.min(candidateIndex, candidates.length - 1)];
   const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 
   try {
     console.log(
-      `📊 [Technical] Fetching indicators for ${symbol} (period: ${period})`,
+      `📊 [Technical] Fetching indicators for ${symbol} (period: ${period}, attempt: ${retryCount + 1}, candidate ${candidateIndex + 1}/${candidates.length})`,
     );
 
     const controller = new AbortController();
@@ -321,13 +329,22 @@ export const fetchTechnicalIndicators = async (
         .filter(
           (item) => item && item.close && item.open && item.high && item.low,
         )
-        .map((item) => ({
-          time: Math.floor(new Date(item.date).getTime() / 1000),
-          open: parseFloat(Number(item.open).toFixed(2)),
-          high: parseFloat(Number(item.high).toFixed(2)),
-          low: parseFloat(Number(item.low).toFixed(2)),
-          close: parseFloat(Number(item.close).toFixed(2)),
-        }))
+        .map((item) => {
+          const rawTs =
+            typeof item.timestamp === "number"
+              ? item.timestamp
+              : typeof item.date === "number"
+                ? item.date
+                : Math.floor(new Date(item.date).getTime() / 1000);
+
+          return {
+            time: rawTs,
+            open: parseFloat(Number(item.open).toFixed(2)),
+            high: parseFloat(Number(item.high).toFixed(2)),
+            low: parseFloat(Number(item.low).toFixed(2)),
+            close: parseFloat(Number(item.close).toFixed(2)),
+          };
+        })
         .sort((a, b) => a.time - b.time);
 
       if (ohlcData.length === 0) {
@@ -351,7 +368,36 @@ export const fetchTechnicalIndicators = async (
 
     throw new Error("Invalid response format - no quotes found");
   } catch (err) {
-    console.error(`❌ [Technical] Error fetching ${stockId}:`, err.message);
+    console.error(`❌ [Technical] Error fetching ${symbol}:`, err.message);
+
+    // Retry with different period (same symbol)
+    if (retryCount < 1) {
+      console.log(`🔄 [Technical] Retrying ${symbol} with broader period...`);
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return fetchTechnicalIndicators(
+        stockId,
+        period,
+        interval,
+        retryCount + 1,
+        candidateIndex,
+      );
+    }
+
+    // Switch candidate (e.g., .TW -> .TWO) if available
+    if (candidateIndex < candidates.length - 1) {
+      console.log(
+        `🔄 [Technical] ${symbol} failed; trying alternate symbol ${candidates[candidateIndex + 1]}...`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return fetchTechnicalIndicators(
+        stockId,
+        period,
+        interval,
+        0,
+        candidateIndex + 1,
+      );
+    }
+
     return null;
   }
 };

@@ -399,6 +399,16 @@ export const searchTaiwanStocks = async (query) => {
   const merged = new Map();
   localMatches.forEach((item) => merged.set(item.id, item));
 
+  // If user輸入數字代號（3-4碼），即便不在本地清單也先提供一筆候選，避免新股找不到
+  if (/^\d{3,4}$/.test(q) && !merged.has(q)) {
+    merged.set(q, {
+      id: q,
+      symbol: getYahooSymbol(q),
+      name: q,
+      exchange: "TSE",
+    });
+  }
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);

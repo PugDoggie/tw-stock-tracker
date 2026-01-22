@@ -12,19 +12,23 @@ const stockMarketMap = new Map();
 stocks.forEach((s) => stockMarketMap.set(s.id, "TW"));
 otcStocks.forEach((s) => stockMarketMap.set(s.id, s.market || "TWO"));
 
-// Determine correct Yahoo Finance suffix for TW/TWO tickers
-const getYahooSymbol = (id) => {
+// Determine correct Yahoo Finance suffix for TW/TWO tickers (with fallback)
+const getSymbolCandidates = (id) => {
   const cleanId = String(id).trim();
 
   // Index symbols (starting with ^) don't need suffix
   if (cleanId.startsWith("^")) {
-    return cleanId;
+    return [cleanId];
   }
 
-  // First, check if it's an OTC stock by looking it up in our data
+  // Known market from our refdata
   const market = stockMarketMap.get(cleanId);
-  const suffix = market === "TWO" ? "TWO" : "TW";
-  return `${cleanId}.${suffix}`;
+  if (market) {
+    return [`${cleanId}.${market === "TWO" ? "TWO" : "TW"}`];
+  }
+
+  // Unknown symbols: try both TW (listed) and TWO (OTC) so new IPOs still work
+  return [`${cleanId}.TW`, `${cleanId}.TWO`];
 };
 
 /**
@@ -40,8 +44,10 @@ export const fetchHistoricalOHLC = async (
   period = "1mo",
   interval = "1d",
   retryCount = 0,
+  candidateIndex = 0,
 ) => {
-  const symbol = getYahooSymbol(stockId);
+  const candidates = getSymbolCandidates(stockId);
+  const symbol = candidates[Math.min(candidateIndex, candidates.length - 1)];
   const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 
   // Determine appropriate period based on interval
@@ -60,7 +66,7 @@ export const fetchHistoricalOHLC = async (
 
   try {
     console.log(
-      `[K-Line] Fetching ${symbol} (period: ${currentPeriod}, attempt: ${retryCount + 1})`,
+      `[K-Line] Fetching ${symbol} (period: ${currentPeriod}, attempt: ${retryCount + 1}, candidate ${candidateIndex + 1}/${candidates.length})`,
     );
 
     const controller = new AbortController();
@@ -126,11 +132,32 @@ export const fetchHistoricalOHLC = async (
       `❌ [K-Line] ${symbol} failed (attempt ${retryCount + 1}): ${err.message}`,
     );
 
-    // Retry with different period if first attempt fails
+    // Retry with different period if first attempt fails (same symbol)
     if (retryCount < 2) {
       console.log(`🔄 [K-Line] Retrying ${symbol} with different period...`);
       await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1s before retry
-      return fetchHistoricalOHLC(stockId, period, interval, retryCount + 1);
+      return fetchHistoricalOHLC(
+        stockId,
+        period,
+        interval,
+        retryCount + 1,
+        candidateIndex,
+      );
+    }
+
+    // Switch to next symbol candidate (e.g., .TW -> .TWO) if available
+    if (candidateIndex < candidates.length - 1) {
+      console.log(
+        `🔄 [K-Line] ${symbol} failed; trying alternate symbol ${candidates[candidateIndex + 1]}...`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return fetchHistoricalOHLC(
+        stockId,
+        period,
+        interval,
+        0,
+        candidateIndex + 1,
+      );
     }
 
     throw err;
