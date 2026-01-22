@@ -5,6 +5,14 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = 3001;
 
+// Simple in-memory cache for refdata
+const refdataCache = {
+  twse: null,
+  tpex: null,
+  timestamp: 0,
+  ttl: 60 * 60 * 1000, // 1 hour
+};
+
 // Basic CORS so the Vite dev server (different port) can call this proxy.
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -28,6 +36,7 @@ app.get("/", (req, res) => {
       "/api/yahoo/historical - Yahoo Finance Historical Data",
       "/api/yahoo/search - Yahoo Finance Search",
       "/api/index/weights - Index Component Weights",
+      "/api/refdata/search - TWSE/TPEX reference data lookup",
     ],
   });
 });
@@ -47,6 +56,125 @@ app.get("/api/twse", async (req, res) => {
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Fetch TWSE refdata (open data JSON)
+const fetchTwseRefdata = async () => {
+  if (
+    refdataCache.twse &&
+    Date.now() - refdataCache.timestamp < refdataCache.ttl
+  ) {
+    return refdataCache.twse;
+  }
+
+  const url = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L";
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Mozilla/5.0 (Node Proxy)",
+    },
+  });
+
+  if (!resp.ok) throw new Error(`TWSE refdata HTTP ${resp.status}`);
+  const data = await resp.json();
+  const mapped = Array.isArray(data)
+    ? data
+        .map((item) => {
+          const id = item["公司代號"] || item["Code"] || item["id"];
+          const name_zh = item["公司名稱"] || item["Name"] || item["name"];
+          const industry =
+            item["產業別"] || item["Industry"] || item["industry"];
+          if (!id || !name_zh) return null;
+          return {
+            id: String(id).trim(),
+            name_zh: String(name_zh).trim(),
+            name_en: item["英文簡稱"] || item["name_en"] || "",
+            industry_zh: industry ? String(industry).trim() : "",
+            industry_en: "",
+            market: "TW",
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  refdataCache.twse = mapped;
+  refdataCache.timestamp = Date.now();
+  return mapped;
+};
+
+// Fetch TPEX refdata (open data JSON)
+const fetchTpexRefdata = async () => {
+  if (
+    refdataCache.tpex &&
+    Date.now() - refdataCache.timestamp < refdataCache.ttl
+  ) {
+    return refdataCache.tpex;
+  }
+
+  const url = "https://www.tpex.org.tw/openapi/v1/mopsfin/t187ap03_L";
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Mozilla/5.0 (Node Proxy)",
+    },
+  });
+
+  if (!resp.ok) throw new Error(`TPEX refdata HTTP ${resp.status}`);
+  const data = await resp.json();
+  const mapped = Array.isArray(data)
+    ? data
+        .map((item) => {
+          const id = item["公司代號"] || item["Code"] || item["id"];
+          const name_zh = item["公司名稱"] || item["Name"] || item["name"];
+          const industry =
+            item["產業別"] || item["Industry"] || item["industry"];
+          if (!id || !name_zh) return null;
+          return {
+            id: String(id).trim(),
+            name_zh: String(name_zh).trim(),
+            name_en: item["英文簡稱"] || item["name_en"] || "",
+            industry_zh: industry ? String(industry).trim() : "",
+            industry_en: "",
+            market: "TWO",
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  refdataCache.tpex = mapped;
+  refdataCache.timestamp = Date.now();
+  return mapped;
+};
+
+// Unified refdata lookup by stockId
+app.get("/api/refdata/search", async (req, res) => {
+  const stockId = String(req.query.stockId || "").trim();
+  if (!/^\d{3,4}$/.test(stockId)) {
+    return res.status(400).json({ error: "Invalid stockId" });
+  }
+
+  try {
+    const [twse, tpex] = await Promise.all([
+      fetchTwseRefdata().catch((err) => {
+        console.warn("[Refdata] TWSE fetch failed", err.message);
+        return [];
+      }),
+      fetchTpexRefdata().catch((err) => {
+        console.warn("[Refdata] TPEX fetch failed", err.message);
+        return [];
+      }),
+    ]);
+
+    const combined = [...twse, ...tpex];
+    const found = combined.find((r) => r.id === stockId);
+    if (!found) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    return res.json(found);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

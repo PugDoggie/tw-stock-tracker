@@ -23,6 +23,7 @@ const isDev = import.meta.env.DEV;
 const requestCache = new Map();
 const CACHE_TTL = 1500; // 1.5 seconds cache for faster real-time updates
 const round2 = (n) => (Number.isFinite(n) ? Number(n.toFixed(2)) : 0);
+const refdataCache = new Map();
 
 // API base for the local proxy server (avoid browser CORS)
 const API_BASE_URL =
@@ -67,6 +68,37 @@ const getSymbolCandidates = (id) => {
 
   // For unknown stocks, try both .TW and .TWO (system will auto-determine which works)
   return [`${cleanId}.TW`, `${cleanId}.TWO`];
+};
+
+// Fetch reference data (name/market) for a stock ID via proxy; cached in-memory
+const fetchRefdataEntry = async (stockId) => {
+  const key = String(stockId).trim();
+  if (refdataCache.has(key)) return refdataCache.get(key);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const url = `${API_BASE_URL}/api/refdata/search?stockId=${encodeURIComponent(key)}`;
+
+    const res = await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    refdataCache.set(key, data);
+    return data;
+  } catch (err) {
+    if (isDev) console.warn(`[Refdata] ${stockId}: ${err.message}`);
+    refdataCache.set(key, null);
+    return null;
+  }
 };
 
 /**
@@ -407,6 +439,21 @@ export const searchTaiwanStocks = async (query) => {
       name: q,
       exchange: "TSE",
     });
+  }
+
+  // Try proxy refdata to enrich name/market for numeric queries
+  if (/^\d{3,4}$/.test(q)) {
+    const ref = await fetchRefdataEntry(q);
+    if (ref) {
+      merged.set(q, {
+        id: q,
+        symbol: `${q}.${ref.market === "TWO" ? "TWO" : "TW"}`,
+        name: `${ref.name_zh}${ref.name_en ? ` / ${ref.name_en}` : ""}`,
+        exchange: ref.market || "TSE",
+        industry_zh: ref.industry_zh,
+        industry_en: ref.industry_en,
+      });
+    }
   }
 
   try {
