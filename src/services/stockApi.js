@@ -14,11 +14,9 @@ import {
   searchableStocks,
 } from "../data/stocks";
 
-// Predefined symbols (indexes/futures) that should NOT append TW/TWO suffix
-// Values can be an array of Yahoo symbols (first entry is preferred)
+// Predefined symbols that should NOT append TW/TWO suffix (index only)
 const SPECIAL_SYMBOL_MAP = {
-  "^TWII": ["^TWII"], // TAIEX 台灣加權指數
-  TXF: ["TXF=F", "WTX&"], // 台指期全 (front-month) with fallback symbol
+  "^TWII": "^TWII", // TAIEX 台灣加權指數
 };
 
 const isDev = import.meta.env.DEV;
@@ -48,9 +46,8 @@ const OTC_ID_SET = new Set([...(otcStocks || []).map((s) => s.id)]);
 const getYahooSymbol = (id) => {
   const cleanId = String(id).trim();
 
-  // Return raw symbol for special assets (indexes/futures)
-  const special = SPECIAL_SYMBOL_MAP[cleanId];
-  if (special) return Array.isArray(special) ? special[0] : special;
+  // Return raw symbol for special assets (index only)
+  if (SPECIAL_SYMBOL_MAP[cleanId]) return SPECIAL_SYMBOL_MAP[cleanId];
 
   // Check market map first (most accurate), fall back to OTC_ID_SET for backwards compatibility
   const market = stockMarketMap.get(cleanId);
@@ -64,10 +61,9 @@ const getYahooSymbol = (id) => {
 const getSymbolCandidates = (id) => {
   const cleanId = String(id).trim();
 
-  // Check if this is a special symbol (index or futures) - return as-is
-  const special = SPECIAL_SYMBOL_MAP[cleanId];
-  if (special) {
-    return Array.isArray(special) ? special : [special];
+  // Check if this is a special symbol (index only) - return as-is
+  if (SPECIAL_SYMBOL_MAP[cleanId]) {
+    return [SPECIAL_SYMBOL_MAP[cleanId]];
   }
 
   // For known stocks, return single symbol
@@ -499,27 +495,6 @@ export const searchTaiwanStocks = async (query) => {
 
   const merged = new Map();
   localMatches.forEach((item) => merged.set(item.id, item));
-
-  // Promote special assets (index/futures) when users search for them explicitly
-  const specialAssets = [
-    {
-      id: "TXF",
-      symbol: (SPECIAL_SYMBOL_MAP.TXF || [])[0] || "TXF=F",
-      name: "台指期全 / TAIEX Futures",
-      exchange: "FUT",
-    },
-  ];
-
-  const matchesFutures =
-    q.includes("台指期") ||
-    q.includes("台指") ||
-    qLower.includes("txf") ||
-    qLower === "tx" ||
-    qLower.includes("taiex future");
-
-  if (matchesFutures) {
-    specialAssets.forEach((asset) => merged.set(asset.id, asset));
-  }
 
   // If user輸入數字代號（3-4碼），即便不在本地清單也先提供一筆候選，避免新股找不到
   if (/^\d{3,4}$/.test(q) && !merged.has(q)) {
