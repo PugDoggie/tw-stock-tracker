@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { getAISuggestion } from "../services/aiAnalysis";
+import { fetchTechnicalIndicators } from "../services/technicalIndicatorsService";
 import { useLanguage } from "../context/LanguageContext";
 import TechnicalIndicatorsCard from "./TechnicalIndicatorsCard";
 import MiniKLineChart from "./MiniKLineChart";
@@ -17,7 +18,23 @@ const StockCard = ({ stock, onClick }) => {
 
     const fetchAI = async () => {
       try {
-        const suggestion = await getAISuggestion(stock, lang);
+        // 先獲取技術指標
+        let indicators = null;
+        try {
+          const indicatorData = await fetchTechnicalIndicators(
+            stock.id,
+            "3mo",
+            "1d",
+          );
+          if (indicatorData?.indicators) {
+            indicators = indicatorData.indicators;
+          }
+        } catch (err) {
+          console.warn(`Failed to fetch indicators for ${stock.id}:`, err);
+        }
+
+        // 將技術指標傳入 AI 分析
+        const suggestion = await getAISuggestion(stock, lang, indicators);
         if (isMounted) {
           setAi(suggestion);
         }
