@@ -18,7 +18,7 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 動態合併：預設清單 + 本地錢包持倉（支援任意代碼，如 2402）
+        // 動態合併：預設清單 + 本地庫存持倉（支援任意代碼，如 2402）
         const baseIds = [...stocks, ...otcStocks].map((s) => s.id);
         let walletIds = [];
         try {

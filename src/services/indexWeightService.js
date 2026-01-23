@@ -1,6 +1,6 @@
 /**
  * Index Weight Service - Dynamic Weight Updates
- * 动态获取并更新个股在加权指数中的权重
+ * 動態獲取並更新個股在加權指數中的權重
  */
 
 const isDev = import.meta.env.DEV;
@@ -11,8 +11,8 @@ let lastUpdateTime = null;
 const WEIGHT_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours (权重不会频繁变动)
 
 /**
- * 从台湾证交所获取加权指数成分股权重
- * 数据来源：https://www.twse.com.tw/zh/products/indices/weightedIndex.html
+ * 從台灣證交所獲取加權指數成分股權重
+ * 資料來源：https://www.twse.com.tw/zh/products/indices/weightedIndex.html
  */
 export const fetchIndexWeights = async () => {
   try {
@@ -28,12 +28,12 @@ export const fetchIndexWeights = async () => {
 
     if (isDev) console.log("[IndexWeight] Fetching fresh weight data...");
 
-    // 方案1: 使用证交所公开数据 (需要proxy解决CORS)
-    // 台湾证交所每月会公布加权指数成分股权重
+    // 方案1: 使用證交所公開資料 (需要proxy解決CORS)
+    // 台灣證交所每月會公布加權指數成分股權重
     // API endpoint: https://www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_INDEX
 
-    // 方案2: 使用Yahoo Finance的市值数据估算权重
-    // 加权指数权重 = 个股市值 / 所有成分股总市值 * 100
+    // 方案2: 使用Yahoo Finance的市值資料估算權重
+    // 加權指數權重 = 個股市值 / 所有成分股總市值 * 100
     const response = await fetch("http://localhost:3001/api/index/weights");
 
     if (!response.ok) {
@@ -71,7 +71,7 @@ export const fetchIndexWeights = async () => {
 };
 
 /**
- * 获取单个股票的权重
+ * 獲取單個股票的權重
  */
 export const getStockWeight = async (stockId) => {
   const weights = await fetchIndexWeights();
@@ -79,7 +79,7 @@ export const getStockWeight = async (stockId) => {
 };
 
 /**
- * 使用市值估算权重（当无法获取官方数据时）
+ * 使用市值估算權重（當無法獲取官方資料時）
  */
 const estimateWeightFromMarketCap = (marketCap, totalMarketCap) => {
   if (!marketCap || !totalMarketCap || totalMarketCap === 0) return 0;
@@ -87,15 +87,15 @@ const estimateWeightFromMarketCap = (marketCap, totalMarketCap) => {
 };
 
 /**
- * Fallback静态权重数据（基于2026年1月的数据）
- * 这些数据应定期手动更新，或从证交所官网获取
+ * Fallback靜態權重資料（基於2026年1月的資料）
+ * 這些資料應定期手動更新，或從證交所官網獲取
  */
 const getFallbackWeights = () => {
   if (isDev) console.log("[IndexWeight] Using fallback static weights");
 
   return {
-    // 半导体产业（高权重）
-    2330: 31.5, // 台积电 - 最高权重
+    // 半導體產業（高權重）
+    2330: 31.5, // 台積電 - 最高權重
     2454: 3.2, // 联发科
     2303: 1.8, // 联电
     3711: 1.5, // 日月光投控
@@ -141,7 +141,7 @@ const getFallbackWeights = () => {
 };
 
 /**
- * 手动刷新权重数据（强制更新）
+ * 手動刷新權重資料（強制更新）
  */
 export const refreshWeights = async () => {
   weightCache = null;
@@ -150,21 +150,21 @@ export const refreshWeights = async () => {
 };
 
 /**
- * 获取权重数据的最后更新时间
+ * 獲取權重資料的最後更新時間
  */
 export const getLastUpdateTime = () => {
   return lastUpdateTime;
 };
 
 /**
- * 检查权重数据是否过期
+ * 檢查權重資料是否過期
  */
 export const isWeightDataStale = () => {
   if (!lastUpdateTime) return true;
   return Date.now() - lastUpdateTime > WEIGHT_CACHE_DURATION;
 };
 
-// 自动初始化：页面加载时预先获取权重数据
+// 自動初始化：頁面載入時預先獲取權重資料
 if (typeof window !== "undefined") {
   fetchIndexWeights().catch((err) => {
     console.warn("[IndexWeight] Initial fetch failed:", err.message);

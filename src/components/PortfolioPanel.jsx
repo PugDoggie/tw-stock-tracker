@@ -14,7 +14,7 @@ const PortfolioPanel = ({ liveStocks = [] }) => {
 
   const stats = getPortfolioStats(liveStocks);
 
-  // 获取库存的AI建议
+  // 獲取庫存的AI建議
   useEffect(() => {
     if (stats.positions.length === 0) return;
 
@@ -45,7 +45,7 @@ const PortfolioPanel = ({ liveStocks = [] }) => {
     fetchAISuggestions();
   }, [stats.positions, liveStocks, lang]);
 
-  // 获取行动标签和颜色
+  // 獲取行動標籤和顏色
   const getActionBadge = (action) => {
     const badges = {
       sell: {
@@ -98,7 +98,7 @@ const PortfolioPanel = ({ liveStocks = [] }) => {
           onClick={() => setShowAddModal(true)}
           className="px-4 py-2 bg-premium-accent hover:bg-premium-accent/80 rounded-lg text-sm font-medium transition-colors"
         >
-          {lang === "zh" ? "+ 添加持股" : "+ Add Position"}
+          {lang === "zh" ? "+ 新增持股" : "+ Add Position"}
         </button>
       </motion.div>
     );
@@ -120,11 +120,11 @@ const PortfolioPanel = ({ liveStocks = [] }) => {
             onClick={() => setShowAddModal(true)}
             className="px-3 py-1 bg-premium-accent/20 hover:bg-premium-accent/30 border border-premium-accent/50 rounded-lg text-xs md:text-sm text-premium-accent transition-colors"
           >
-            + {lang === "zh" ? "添加" : "Add"}
+            + {lang === "zh" ? "新增" : "Add"}
           </button>
         </div>
 
-        {/* 组合统计 */}
+        {/* 組合統計 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-slate-800/50 rounded-lg p-3">
             <p className="text-xs text-slate-400 mb-1">
@@ -278,7 +278,7 @@ const PortfolioPanel = ({ liveStocks = [] }) => {
         </table>
       </div>
 
-      {/* AI建议详情 */}
+      {/* AI建議詳情 */}
       {Object.keys(aiSuggestions).length > 0 && (
         <div className="border-t border-slate-700/50 p-4 md:p-6 bg-slate-900/50">
           <p className="text-slate-400 text-xs md:text-sm mb-3 font-medium">

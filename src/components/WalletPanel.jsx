@@ -17,7 +17,7 @@ const WalletPanel = ({ isOpen, onClose, liveStocks = [] }) => {
 
   const stats = getPortfolioStats(liveStocks);
 
-  // 获取库存的AI建议（含技術指標）
+  // 獲取庫存的AI建議（含技術指標）
   useEffect(() => {
     if (stats.positions.length === 0) return;
 
@@ -150,7 +150,7 @@ const WalletPanel = ({ isOpen, onClose, liveStocks = [] }) => {
           <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-700 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold">
-                💼 {lang === "zh" ? "我的錢包" : "My Wallet"}
+                📈 {lang === "zh" ? "我的庫存" : "My Wallet"}
               </h2>
               <button
                 onClick={onClose}
@@ -160,7 +160,7 @@ const WalletPanel = ({ isOpen, onClose, liveStocks = [] }) => {
               </button>
             </div>
 
-            {/* 组合统计 */}
+            {/* 組合統計 */}
             {positions.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="bg-slate-800/50 rounded-lg p-3">

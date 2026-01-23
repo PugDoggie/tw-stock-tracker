@@ -22,7 +22,7 @@ const WalletButton = ({
         className="relative text-xs md:text-sm font-medium text-slate-300 hover:text-white transition-colors px-3 md:px-4 py-2 md:py-2 bg-slate-700/30 hover:bg-slate-700/50 border border-slate-600/50 rounded-lg md:rounded-xl"
       >
         <span className="flex items-center gap-2">
-          💼 {lang === "zh" ? "我的錢包" : "My Wallet"}
+          📈 {lang === "zh" ? "我的庫存" : "My Wallet"}
           {positions.length > 0 && (
             <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-premium-accent text-slate-900 rounded-full">
               {positions.length}

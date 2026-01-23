@@ -35,21 +35,21 @@ export const PortfolioProvider = ({ children }) => {
   }, [positions, hydrated]);
 
   /**
-   * 添加或更新持仓
+   * 新增或更新持倉
    * @param {object} position - { stockId, name, costPrice, quantity, addedAt }
    */
   const addPosition = (position) => {
     setPositions((prev) => {
       const existing = prev.find((p) => p.stockId === position.stockId);
       if (existing) {
-        // 更新现有持仓
+        // 更新現有持倉
         return prev.map((p) =>
           p.stockId === position.stockId
             ? { ...p, ...position, updatedAt: new Date().toISOString() }
             : p,
         );
       } else {
-        // 添加新持仓
+        // 新增持倉
         return [
           ...prev,
           {
@@ -63,7 +63,7 @@ export const PortfolioProvider = ({ children }) => {
   };
 
   /**
-   * 删除持仓
+   * 刪除持倉
    */
   const removePosition = (positionId) => {
     setPositions((prev) =>
@@ -72,7 +72,7 @@ export const PortfolioProvider = ({ children }) => {
   };
 
   /**
-   * 更新持仓
+   * 更新持倉
    */
   const updatePosition = (stockId, updates) => {
     setPositions((prev) =>
@@ -81,14 +81,14 @@ export const PortfolioProvider = ({ children }) => {
   };
 
   /**
-   * 获取特定股票的持仓
+   * 獲取特定股票的持倉
    */
   const getPosition = (stockId) => {
     return positions.find((p) => p.stockId === stockId);
   };
 
   /**
-   * 计算组合统计
+   * 計算組合統計
    */
   const getPortfolioStats = (liveStocks = []) => {
     if (positions.length === 0) {

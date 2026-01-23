@@ -51,7 +51,7 @@ export const getAISuggestion = async (
   const marketIndex = marketContext?.index || null;
   const marketFutures = marketContext?.futures || null;
 
-  // 动态获取股票权重（优先使用动态数据，fallback到静态数据）
+  // 動態獲取股票權重（優先使用動態資料，fallback到靜態資料）
   let stockWeight = stock.indexWeight || 0;
   try {
     const dynamicWeight = await getStockWeight(stock.id);
@@ -59,7 +59,7 @@ export const getAISuggestion = async (
       stockWeight = dynamicWeight;
     }
   } catch (err) {
-    // 使用静态权重作为fallback
+    // 使用靜態權重作為fallback
     console.warn(
       `[AI Analysis] Using static weight for ${stock.id}:`,
       err.message,
@@ -726,11 +726,11 @@ export const getAISuggestion = async (
 };
 
 /**
- * AI库存分析 - 针对持有成本的加码/卖出建议
- * @param {object} stock - 股票数据
- * @param {object} position - 持仓数据 { costPrice, quantity }
- * @param {object} indicators - 技术指标（可选）
- * @param {string} lang - 语言
+ * AI庫存分析 - 針對持有成本的加碼/賣出建議
+ * @param {object} stock - 股票資料
+ * @param {object} position - 持倉資料 { costPrice, quantity }
+ * @param {object} indicators - 技術指標（可選）
+ * @param {string} lang - 語言
  */
 export const getPortfolioAISuggestion = async (
   stock,
@@ -752,10 +752,10 @@ export const getPortfolioAISuggestion = async (
   const gain = ((currentPrice - costPrice) / costPrice) * 100;
   const gainValue = (currentPrice - costPrice) * position.quantity;
 
-  // 获取基础建议
+  // 獲取基礎建議
   const baseAI = await getAISuggestion(stock, lang, indicators);
 
-  // 库存成本分析
+  // 庫存成本分析
   const priceToTarget = baseAI.strategies?.aggressive?.targetPrice
     ? ((parseFloat(baseAI.strategies.aggressive.targetPrice) - currentPrice) /
         currentPrice) *
@@ -767,7 +767,7 @@ export const getPortfolioAISuggestion = async (
       100
     : 0;
 
-  // 库存特定逻辑
+  // 庫存特定邏輯
   let portfolioAction = "hold";
   let confidence = baseAI.confidence || 50;
   let reasoning = "";
@@ -775,20 +775,20 @@ export const getPortfolioAISuggestion = async (
   const rsi = parseFloat(baseAI.indicators?.rsi) || 50;
   const bbPosition = baseAI.indicators?.bbPosition || "Inside";
 
-  // 规则1：已获利且在高位 -> 考虑减仓卖出
+  // 規刱1：已獲利且在高位 -> 考慮減倉賣出
   if (gain > 15 && rsi > 70) {
     portfolioAction = "sell";
     confidence = Math.min(85, confidence + 15);
     reasoning =
       lang === "zh"
-        ? `已獲利 ${gain.toFixed(2)}%，技術面超買（RSI ${rsi.toFixed(1)}）。建議減仓獲利，或全數出場。`
+        ? `已獲利 ${gain.toFixed(2)}%，技術面超買（RSI ${rsi.toFixed(1)}）。建議減倉獲利，或全數出場。`
         : `Gained ${gain.toFixed(2)}%, overbought technicals (RSI ${rsi.toFixed(1)}). Consider taking profits or exiting.`;
   }
-  // 规则2：跌破成本价且超卖 -> 加码或止损
+  // 規刱2：跌破成本價且超賣 -> 加碼或止損
   else if (gain < -5 && rsi < 30) {
     const priceToBreakeven = ((costPrice - currentPrice) / currentPrice) * 100;
 
-    // 如果跌幅小于10%且基础建议是买入，可加码
+    // 如果跌幅小於10%且基礎建議是買入，可加碼
     if (
       gain > -10 &&
       (baseAI.action === "strongBuy" || baseAI.action === "buy")
@@ -800,7 +800,7 @@ export const getPortfolioAISuggestion = async (
           ? `下跌 ${Math.abs(gain).toFixed(2)}%，超賣訊號。技術面 RSI ${rsi.toFixed(1)} 具反彈潛力。建議加码，成本均價下降至 ${(costPrice * position.quantity + currentPrice * position.quantity * 0.5) / (position.quantity * 1.5)}.toFixed(2)。`
           : `Down ${Math.abs(gain).toFixed(2)}%, oversold. RSI ${rsi.toFixed(1)} shows reversal potential. Consider adding. Average cost would be reduced.`;
     } else {
-      // 跌幅大于10%或基础建议是卖出 -> 止损
+      // 跌幅大於10%或基礎建議是賣出 -> 止損
       portfolioAction = "stopLoss";
       confidence = Math.min(75, baseAI.confidence);
       reasoning =
@@ -809,7 +809,7 @@ export const getPortfolioAISuggestion = async (
           : `Down ${Math.abs(gain).toFixed(2)}%, below cost price. Consider stop loss to prevent further losses.`;
     }
   }
-  // 规则3：小幅获利(5-15%)且趋势向上 -> 持有或加码
+  // 規刱3：小幅獲利(5-15%)且趋勢向上 -> 持有或加碼
   else if (gain >= 5 && gain <= 15 && baseAI.action === "strongBuy") {
     portfolioAction = "addMore";
     confidence = Math.min(85, baseAI.confidence);
@@ -818,7 +818,7 @@ export const getPortfolioAISuggestion = async (
         ? `已獲利 ${gain.toFixed(2)}%，AI信號強烈看好。建議加码擴大獲利潛力，目標 ${baseAI.strategies?.aggressive?.targetPrice || "N/A"}。`
         : `Gained ${gain.toFixed(2)}%, strong buy signal. Consider adding for greater profit potential to ${baseAI.strategies?.aggressive?.targetPrice || "N/A"}.`;
   }
-  // 规则4：接近目标价 -> 卖出或减仓（僅在已有浮盈時才提示獲利）
+  // 規刱4：接近目標價 -> 賣出或減倉（僅在已有浮盈時才提示獲利）
   else if (
     gain >= 0 &&
     priceToTarget < 5 &&
@@ -832,7 +832,7 @@ export const getPortfolioAISuggestion = async (
         ? `接近目標價 ${baseAI.strategies?.aggressive?.targetPrice}（還有 ${priceToTarget.toFixed(2)}% 空間）。建議獲利出場。`
         : `Approaching target price ${baseAI.strategies?.aggressive?.targetPrice} (${priceToTarget.toFixed(2)}% left). Consider exiting at target.`;
   }
-  // 规则5：接近止损价 -> 立即止损
+  // 規刱5：接近止損價 -> 立即止損
   else if (priceToStopLoss < 3 && baseAI.action !== "strongBuy") {
     portfolioAction = "stopLoss";
     confidence = 90;
@@ -841,7 +841,7 @@ export const getPortfolioAISuggestion = async (
         ? `接近止損點 ${baseAI.strategies?.aggressive?.stopLoss}，風險加劇。建議立即止損。`
         : `Approaching stop loss at ${baseAI.strategies?.aggressive?.stopLoss}. Risk elevated. Exit immediately.`;
   }
-  // 规则6：整體偏空且帳上虧損 -> 建議停損出場
+  // 規刱6：整體偏空且帳上處損 -> 建議停損出場
   else if (
     gain < 0 &&
     baseAI.action !== t.actions.strongBuy &&
@@ -854,7 +854,7 @@ export const getPortfolioAISuggestion = async (
         ? `目前虧損 ${Math.abs(gain).toFixed(2)}%，AI 判定不適合續抱。為避免持續下跌，建議嚴格停損出場，保留資金等待更佳機會。`
         : `Currently down ${Math.abs(gain).toFixed(2)}% and AI bias is not bullish. To avoid further drawdown, cut the position and preserve capital for better setups.`;
   }
-  // 默认：持有或继续观望
+  // 默認：持有或繼續觀望
   else {
     portfolioAction = baseAI.action === "strongBuy" ? "hold" : "hold";
     confidence = baseAI.confidence;

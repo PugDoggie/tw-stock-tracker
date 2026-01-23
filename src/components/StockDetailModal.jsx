@@ -242,7 +242,7 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
                 onClick={() => setShowAddForm(true)}
                 className="w-full md:w-auto px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-premium-accent to-cyan-400 hover:from-premium-accent/90 hover:to-cyan-400/90 text-slate-900 font-black rounded-xl md:rounded-2xl transition-all shadow-lg shadow-premium-accent/30 text-sm md:text-base"
               >
-                💼 {lang === "zh" ? "加入我的錢包" : "Add to My Wallet"}
+                📈 {lang === "zh" ? "加入我的庫存" : "Add to My Wallet"}
               </motion.button>
             ) : isInWallet ? (
               <div className="flex items-center gap-3 text-green-400">
@@ -250,12 +250,12 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
                 <div>
                   <p className="font-bold">
                     {lang === "zh"
-                      ? "已在你的錢包中"
+                      ? "已在你的庫存中"
                       : "Already in your wallet"}
                   </p>
                   <p className="text-xs text-slate-400">
                     {lang === "zh"
-                      ? "在錢包中查看詳細資訊"
+                      ? "在庫存中查看詳細資訊"
                       : "View details in your wallet"}
                   </p>
                 </div>

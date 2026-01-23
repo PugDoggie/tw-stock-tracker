@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start:proxy": "node proxy-server.js",
-    "start:all": "npm run start:proxy & npm run dev",
+    "start:all": "node dev-server.js",
     "serve": "serve -s dist -l 3000",
     "start:production": "npm run build && npm run serve",
     "start": "node start.js"

@@ -13,6 +13,13 @@ const refdataCache = {
   ttl: 60 * 60 * 1000, // 1 hour
 };
 
+// Cache for index weights (權重不會頻繁變動，每天更新一次即可)
+const weightsCache = {
+  data: null,
+  timestamp: 0,
+  ttl: 24 * 60 * 60 * 1000, // 24 hours
+};
+
 // Basic CORS so the Vite dev server (different port) can call this proxy.
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -410,14 +417,25 @@ app.get("/api/yahoo/historical", async (req, res) => {
 });
 
 // Index component weights endpoint
-// 获取加权指数成分股权重数据
+// 獲取加權指數成分股權重資料
 app.get("/api/index/weights", async (req, res) => {
   try {
-    console.log("[Index Weights] Fetching component weights...");
+    // 檢查緩存是否有效
+    const now = Date.now();
+    if (weightsCache.data && now - weightsCache.timestamp < weightsCache.ttl) {
+      console.log(
+        `[Index Weights] Using cached data (age: ${((now - weightsCache.timestamp) / 1000 / 60).toFixed(0)} minutes)`,
+      );
+      return res.json(weightsCache.data);
+    }
 
-    // 方法1: 尝试从台湾证交所获取实时数据
-    // 证交所API: https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU
-    // 这个API提供每日收盘后的市值和权重数据
+    console.log(
+      "[Index Weights] Cache expired or empty, fetching fresh data...",
+    );
+
+    // 方法1: 嘗試從台灣證交所獲取即時資料
+    // 證交所API: https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU
+    // 這個API提供每日收盤後的市值和權重資料
 
     const twseUrl = `https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU?date=${new Date().toISOString().split("T")[0].replace(/-/g, "")}&response=json`;
 
@@ -434,12 +452,12 @@ app.get("/api/index/weights", async (req, res) => {
       if (response.ok) {
         const data = await response.json();
 
-        // 解析证交所返回的数据格式
+        // 解析證交所返回的資料格式
         if (data && data.data && Array.isArray(data.data)) {
           const weights = {};
 
           data.data.forEach((row) => {
-            // row格式: [股票代码, 股票名称, 市值, 权重, ...]
+            // row格式: [股票代碼, 股票名稱, 市值, 權重, ...]
             const stockId = row[0]?.trim();
             const weight = parseFloat(row[3]);
 
@@ -449,14 +467,20 @@ app.get("/api/index/weights", async (req, res) => {
           });
 
           if (Object.keys(weights).length > 0) {
-            console.log(
-              `[Index Weights] Fetched ${Object.keys(weights).length} weights from TWSE`,
-            );
-            return res.json({
+            const result = {
               weights,
               source: "TWSE",
               lastUpdate: new Date().toISOString(),
-            });
+            };
+
+            // 更新緩存
+            weightsCache.data = result;
+            weightsCache.timestamp = now;
+
+            console.log(
+              `[Index Weights] ✅ Fetched ${Object.keys(weights).length} weights from TWSE and cached`,
+            );
+            return res.json(result);
           }
         }
       }
@@ -464,48 +488,54 @@ app.get("/api/index/weights", async (req, res) => {
       console.warn("[Index Weights] TWSE fetch failed:", twseError.message);
     }
 
-    // 方法2: Fallback到静态数据（基于2026年1月数据）
-    console.log("[Index Weights] Using fallback static data");
+    // 方法2: Fallback到靜態資料（基於2026年1月資料）
+    console.log("[Index Weights] ⚠️ Using fallback static data");
 
     const fallbackWeights = {
-      2330: 31.5,
-      2454: 3.2,
-      2303: 1.8,
-      3711: 1.5,
-      3034: 2.3,
-      2408: 0.3,
-      6549: 0.4,
-      2317: 5.2,
-      2382: 2.1,
-      2376: 0.6,
-      2356: 0.8,
-      2344: 0.9,
-      2395: 0.3,
-      2436: 0.2,
-      2301: 0.5,
-      2882: 3.4,
-      2891: 1.2,
-      2880: 1.5,
-      2603: 2.8,
-      2618: 1.3,
-      2615: 1.2,
-      2412: 1.9,
-      2409: 0.9,
-      1590: 1.6,
-      1101: 0.7,
-      2201: 0.4,
-      1216: 1.1,
-      2498: 0.2,
-      1609: 0.3,
-      2545: 0.1,
+      2330: 31.5, // 台積電
+      2454: 3.2, // 聯發科
+      2303: 1.8, // 聯電
+      3711: 1.5, // 日月光投控
+      3034: 2.3, // 聯詠
+      2408: 0.3, // 南亞科
+      6549: 0.4, // 旺矽
+      2317: 5.2, // 鴻海
+      2382: 2.1, // 廣達
+      2376: 0.6, // 技嘉
+      2356: 0.8, // 英業達
+      2344: 0.9, // 華邦電
+      2395: 0.3, // 研華
+      2436: 0.2, // 偉詮電
+      2301: 0.5, // 光寶科
+      2882: 3.4, // 國泰金
+      2891: 1.2, // 中信金
+      2880: 1.5, // 華南金
+      2603: 2.8, // 長榮
+      2618: 1.3, // 長榮航
+      2615: 1.2, // 萬海
+      2412: 1.9, // 中華電
+      2409: 0.9, // 友達
+      1590: 1.6, // 亞德客-KY
+      1101: 0.7, // 台泥
+      2201: 0.4, // 裕隆
+      1216: 1.1, // 統一
+      2498: 0.2, // 宏達電
+      1609: 0.3, // 大亞
+      2545: 0.1, // 皇翔
     };
 
-    res.json({
+    const result = {
       weights: fallbackWeights,
       source: "fallback",
       lastUpdate: new Date().toISOString(),
       note: "Using static weights - TWSE data unavailable",
-    });
+    };
+
+    // 即使使用 fallback，也緩存起來避免重複計算
+    weightsCache.data = result;
+    weightsCache.timestamp = now;
+
+    res.json(result);
   } catch (err) {
     console.error("[Index Weights] Error:", err.message);
     res.status(500).json({ error: err.message });

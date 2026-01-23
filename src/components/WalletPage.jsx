@@ -22,7 +22,7 @@ const WalletPage = ({ onClose, liveStocks = [] }) => {
   console.log("WalletPage - liveStocks:", liveStocks);
   console.log("WalletPage - stats:", stats);
 
-  // 获取库存的AI建议（含技術指標）
+  // 獲取庫存的AI建議（含技術指標）
   useEffect(() => {
     if (stats.positions.length === 0) return;
 
@@ -139,14 +139,14 @@ const WalletPage = ({ onClose, liveStocks = [] }) => {
             <div className="text-lg md:text-xl font-bold tracking-tighter">
               TW<span className="text-premium-accent">STOCK</span>
               <span className="ml-3 text-sm text-slate-400 font-normal">
-                / 💼 {lang === "zh" ? "我的錢包" : "My Wallet"}
+                / 📈 {lang === "zh" ? "我的庫存" : "My Stocks"}
               </span>
             </div>
             <button
               onClick={onClose}
               className="group flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition-all px-4 py-2 hover:bg-white/10 rounded-lg border border-slate-700 hover:border-slate-500"
             >
-              <span>← {lang === "zh" ? "返回主頁" : "Back to Home"}</span>
+              <span>← {lang === "zh" ? "返回主頁" : "Back to Dashboard"}</span>
             </button>
           </div>
         </div>
@@ -156,7 +156,7 @@ const WalletPage = ({ onClose, liveStocks = [] }) => {
           <div className="max-w-7xl mx-auto p-6 md:p-10">
             <div className="mb-8">
               <h1 className="text-4xl md:text-5xl font-black mb-2 bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-                💼 {lang === "zh" ? "投資組合總覽" : "Portfolio Overview"}
+                📈 {lang === "zh" ? "投資組合總覽" : "Portfolio Overview"}
               </h1>
               <p className="text-slate-400 text-sm md:text-base">
                 {lang === "zh"
@@ -229,13 +229,13 @@ const WalletPage = ({ onClose, liveStocks = [] }) => {
         <div className="max-w-7xl mx-auto p-6 md:p-10 space-y-6 pb-20">
           {positions.length === 0 ? (
             <div className="text-center py-32 text-slate-400">
-              <div className="text-6xl mb-6">💼</div>
+              <div className="text-6xl mb-6">📈</div>
               <p className="text-2xl font-bold mb-4">
-                {lang === "zh" ? "你的錢包是空的" : "Your wallet is empty"}
+                {lang === "zh" ? "你的庫存是空的" : "Your wallet is empty"}
               </p>
               <p className="text-lg mb-8">
                 {lang === "zh"
-                  ? "透過搜尋個股後按下「加入錢包」來開始投資"
+                  ? "透過搜尋個股後按下「加入庫存」來開始投資"
                   : "Search for stocks and click 'Add to Wallet' to get started"}
               </p>
               <button
