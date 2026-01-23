@@ -29,12 +29,12 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Mount proxy routes without adding extra prefix (avoid /api/api)
-app.use(proxyApp);
-
-// Serve static frontend files
+// Serve static frontend files first (so / loads SPA instead of proxy JSON)
 const distPath = join(__dirname, "dist");
 app.use(express.static(distPath));
+
+// Mount proxy routes under /api to avoid clobbering SPA root
+app.use("/api", proxyApp);
 
 // SPA fallback - serve index.html for all unmatched routes
 app.use((req, res) => {
