@@ -55,6 +55,11 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
             confidence: 50,
             reason: "Analysis unavailable",
             detailedReason: "AI analysis failed. Please try again.",
+            concise: {
+              decision: t("actions.neutral"),
+              rationale: "AI analysis failed. Please try again.",
+              referenceData: [],
+            },
             indicators: {},
             institutional: {
               investors: "N/A",

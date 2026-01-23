@@ -322,10 +322,106 @@ export const getAISuggestion = async (
       : `Market analysis: ${parts.join("; ")}.`;
   };
 
-  const reason = `${baseReason} ${formatMarketNote()}`.trim();
+  const marketNote = formatMarketNote();
+
+  const formatVolumeValue = (value) => {
+    if (!value && value !== 0) return lang === "zh" ? "N/A" : "N/A";
+    if (value >= 1_000_000_000) {
+      return `${(value / 1_000_000_000).toFixed(2)}B`;
+    }
+    if (value >= 1_000_000) {
+      return `${(value / 1_000_000).toFixed(2)}M`;
+    }
+    if (value >= 10_000) {
+      return `${(value / 1_000).toFixed(1)}K`;
+    }
+    return value.toLocaleString();
+  };
+
+  const volumeValue = stock.volume || (seed % 50000) + 10000;
+  const investorsText = `${instFlow > 0 ? "+" : ""}${instFlow.toFixed(0)}M`;
+  const marginText = `${marginBalance.toFixed(0)}M`;
+
+  const translateTrend = (trend) => {
+    if (lang === "zh") {
+      if (trend === "Uptrend") return "均線多頭";
+      if (trend === "Downtrend") return "均線空頭";
+      return "均線中性";
+    }
+    if (trend === "Uptrend") return "MA uptrend";
+    if (trend === "Downtrend") return "MA downtrend";
+    return "MA neutral";
+  };
+
+  const translateStochastic = (status) => {
+    if (lang === "zh") {
+      if (status === "Oversold") return "KD超賣";
+      if (status === "Overbought") return "KD超買";
+      return "KD中性";
+    }
+    if (status === "Oversold") return "Stoch oversold";
+    if (status === "Overbought") return "Stoch overbought";
+    return "Stoch neutral";
+  };
+
+  const translateBB = (pos) => {
+    if (lang === "zh") {
+      if (pos === "Above Upper") return "布林上軌";
+      if (pos === "Below Lower") return "布林下軌";
+      return "布林中軌";
+    }
+    if (pos === "Above Upper") return "BB upper";
+    if (pos === "Below Lower") return "BB lower";
+    return "BB mid";
+  };
+
+  const mainReason = (baseReason || "").split(/[。.!?]/)[0]?.trim() || "";
+
+  const technicalLine =
+    lang === "zh"
+      ? `技術：RSI ${rsi.toFixed(1)}，${macdTrend === "Bullish" ? "MACD看多" : "MACD看空"}，${translateTrend(maTrend)}，${translateStochastic(stochasticStatus)}，${translateBB(bbPosition)}`
+      : `Tech: RSI ${rsi.toFixed(1)}, MACD ${macdTrend === "Bullish" ? "bullish" : "bearish"}, ${translateTrend(maTrend)}, ${translateStochastic(stochasticStatus)}, ${translateBB(bbPosition)}`;
+
+  const volumeLine =
+    lang === "zh"
+      ? `量價：成交量 ${formatVolumeValue(volumeValue)}，當沖 ${dayTradeRate.toFixed(1)}%`
+      : `Volume: ${formatVolumeValue(volumeValue)}, day-trade ${dayTradeRate.toFixed(1)}%`;
+
+  const flowLine =
+    lang === "zh"
+      ? `籌碼：法人 ${investorsText}，融資融券 ${marginText}`
+      : `Flows: Inst ${investorsText}, margin/short ${marginText}`;
+
+  const marketLine =
+    marketNote ||
+    (lang === "zh" ? "市場：暫無顯著影響" : "Market: no notable bias");
+
+  const conciseRationale =
+    `${mainReason ? `${mainReason} | ` : ""}${technicalLine}；${volumeLine}；${flowLine}；${marketLine}`.trim();
+
+  const referenceData = [
+    {
+      label: lang === "zh" ? "技術指標" : "Technical indicators",
+      value: `RSI ${rsi.toFixed(1)}, MACD ${macdTrend}, ${translateTrend(maTrend)}, ${translateStochastic(stochasticStatus)}, ${translateBB(bbPosition)}`,
+    },
+    {
+      label: lang === "zh" ? "量能/當沖" : "Volume & intraday",
+      value: `${lang === "zh" ? "成交量" : "Volume"} ${formatVolumeValue(volumeValue)}, ${lang === "zh" ? "當沖" : "Day trade"} ${dayTradeRate.toFixed(1)}%`,
+    },
+    {
+      label: lang === "zh" ? "法人/融資券" : "Institutional & margin",
+      value: `${lang === "zh" ? "法人" : "Inst"} ${investorsText}; ${lang === "zh" ? "融資融券" : "Margin/short"} ${marginText}`,
+    },
+    {
+      label: lang === "zh" ? "市場脈絡" : "Market context",
+      value: marketLine,
+    },
+  ];
+
+  const reason = conciseRationale;
 
   // 为 StockDetailModal 提供详细原因
-  const detailedReason = reason;
+  const detailedReason = conciseRationale;
 
   // Enhanced strategy details with clear reasoning
   const getStrategyDetails = () => {
@@ -417,7 +513,7 @@ export const getAISuggestion = async (
       maTrend: maTrend,
       bbPosition: bbPosition,
       stochastic: stochasticStatus,
-      volume: stock.volume || (seed % 50000) + 10000,
+      volume: volumeValue,
       signalAlignment: {
         bullish: bullishSignals,
         bearish: bearishSignals,
@@ -430,5 +526,10 @@ export const getAISuggestion = async (
     },
     marketBias,
     strategies,
+    concise: {
+      decision: action,
+      rationale: conciseRationale,
+      referenceData,
+    },
   };
 };

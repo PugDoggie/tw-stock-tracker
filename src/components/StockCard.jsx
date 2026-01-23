@@ -29,6 +29,12 @@ const StockCard = ({ stock, onClick }) => {
             action: t("actions.neutral"),
             confidence: 50,
             reason: "Analysis unavailable",
+            detailedReason: "Analysis unavailable",
+            concise: {
+              decision: t("actions.neutral"),
+              rationale: "Analysis unavailable",
+              referenceData: [],
+            },
             strategies: {
               aggressive: {
                 targetPrice: (stock.price * 1.05).toFixed(2),
