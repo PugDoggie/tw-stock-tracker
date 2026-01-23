@@ -52,16 +52,60 @@ app.get("/", (req, res) => {
 app.get("/api/twse", async (req, res) => {
   const { ex_ch } = req.query;
   if (!ex_ch) return res.status(400).json({ error: "Missing ex_ch param" });
-  const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${encodeURIComponent(ex_ch)}&json=1&delay=0&_=${Date.now()}`;
   try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "Mozilla/5.0 (Node Proxy)",
-      },
-    });
-    const data = await response.json();
-    res.json(data);
+    const symbols = String(ex_ch)
+      .split("|")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (symbols.length === 0) {
+      return res.status(400).json({ error: "No valid symbols" });
+    }
+
+    // TWSE endpoint occasionally drops connections when query is too long;
+    // chunk requests to improve reliability (<=50 symbols per request).
+    const chunkSize = 50;
+    const chunks = [];
+    for (let i = 0; i < symbols.length; i += chunkSize) {
+      chunks.push(symbols.slice(i, i + chunkSize));
+    }
+
+    const results = [];
+    for (const chunk of chunks) {
+      const chunkParam = chunk.join("|");
+      const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${encodeURIComponent(chunkParam)}&json=1&delay=0&_=${Date.now()}`;
+
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Referer: "https://mis.twse.com.tw/stock/index.jsp",
+          "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+          Host: "mis.twse.com.tw",
+        },
+      });
+
+      if (!response.ok) {
+        return res
+          .status(502)
+          .json({ error: `TWSE upstream HTTP ${response.status}` });
+      }
+
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        return res.status(502).json({ error: "Invalid JSON from TWSE" });
+      }
+
+      if (Array.isArray(data?.msgArray)) {
+        results.push(...data.msgArray);
+      }
+    }
+
+    res.json({ msgArray: results });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
