@@ -658,16 +658,10 @@ export const fetchLiveStockData = async (stockIds) => {
     liveData = await fetchFromProxyServer(stockIds);
   }
 
-  // Strategy 4: Try direct TWSE API if proxy fails (skip if proxy returned empty array)
-  if (!liveData || liveData.length === 0) {
-    if (isDev) console.log(`[Fallback] Trying Direct TWSE API...`);
-    liveData = await fetchFromTWSEDirect(stockIds);
-  }
-
-  // Strategy 5: If all live sources fail, throw so UI can surface the error
+  // Strategy 4: If all sources fail, throw so UI can surface the error
   if (!liveData || liveData.length === 0) {
     throw new Error(
-      "No live data available (Yahoo / Proxy / TWSE all failed). Please retry.",
+      "No live data available (Yahoo / Proxy both failed). Please retry.",
     );
   }
 
