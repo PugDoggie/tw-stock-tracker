@@ -180,38 +180,65 @@ const fetchTpexRefdata = async () => {
   }
 
   const url = "https://www.tpex.org.tw/openapi/v1/mopsfin/t187ap03_L";
-  const resp = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Mozilla/5.0 (Node Proxy)",
-    },
-  });
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-  if (!resp.ok) throw new Error(`TPEX refdata HTTP ${resp.status}`);
-  const data = await resp.json();
-  const mapped = Array.isArray(data)
-    ? data
-        .map((item) => {
-          const id = item["公司代號"] || item["Code"] || item["id"];
-          const name_zh = item["公司名稱"] || item["Name"] || item["name"];
-          const industry =
-            item["產業別"] || item["Industry"] || item["industry"];
-          if (!id || !name_zh) return null;
-          return {
-            id: String(id).trim(),
-            name_zh: String(name_zh).trim(),
-            name_en: item["英文簡稱"] || item["name_en"] || "",
-            industry_zh: industry ? String(industry).trim() : "",
-            industry_en: "",
-            market: "TWO",
-          };
-        })
-        .filter(Boolean)
-    : [];
+    const resp = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        Referer: "https://www.tpex.org.tw/",
+      },
+    });
 
-  refdataCache.tpex = mapped;
-  refdataCache.timestamp = Date.now();
-  return mapped;
+    clearTimeout(timeoutId);
+
+    if (!resp.ok) {
+      console.warn(`[Refdata] TPEX HTTP ${resp.status}`);
+      return [];
+    }
+
+    const text = await resp.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      console.warn(
+        `[Refdata] TPEX JSON parse failed (first 100 chars: ${text.substring(0, 100)})`,
+      );
+      return [];
+    }
+
+    const mapped = Array.isArray(data)
+      ? data
+          .map((item) => {
+            const id = item["公司代號"] || item["Code"] || item["id"];
+            const name_zh = item["公司名稱"] || item["Name"] || item["name"];
+            const industry =
+              item["產業別"] || item["Industry"] || item["industry"];
+            if (!id || !name_zh) return null;
+            return {
+              id: String(id).trim(),
+              name_zh: String(name_zh).trim(),
+              name_en: item["英文簡稱"] || item["name_en"] || "",
+              industry_zh: industry ? String(industry).trim() : "",
+              industry_en: "",
+              market: "TWO",
+            };
+          })
+          .filter(Boolean)
+      : [];
+
+    refdataCache.tpex = mapped;
+    refdataCache.timestamp = Date.now();
+    return mapped;
+  } catch (err) {
+    console.warn(`[Refdata] TPEX fetch error: ${err.message}`);
+    return [];
+  }
 };
 
 // Unified refdata lookup by stockId
