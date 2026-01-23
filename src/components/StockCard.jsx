@@ -35,6 +35,7 @@ const StockCard = ({ stock, onClick }) => {
               rationale: "Analysis unavailable",
               referenceData: [],
             },
+            horizonRecommendations: [],
             strategies: {
               aggressive: {
                 targetPrice: (stock.price * 1.05).toFixed(2),

@@ -423,6 +423,146 @@ export const getAISuggestion = async (
   // 为 StockDetailModal 提供详细原因
   const detailedReason = conciseRationale;
 
+  const buildHorizonRecommendation = () => {
+    // 短線評分（3-5天）：著重當沖比例、RSI、K值、成交量
+    const shortScore = [
+      rsi < 30 || rsi > 70 ? 2 : 1, // 極值能帶來波段
+      stochasticStatus === "Oversold" || stochasticStatus === "Overbought"
+        ? 2
+        : 1, // K值極值
+      dayTradeRate > 25 ? 1 : 2, // 當沖低於25%流動性好
+      volumeValue > (stock.volume ? stock.volume * 1.1 : 50000) ? 2 : 1, // 量能放大
+    ].reduce((a, b) => a + b, 0);
+
+    // 中線評分（約30天）：著重均線趨勢、MACD、布林帶、機構買賣
+    const midScore = [
+      maTrend === "Uptrend" ? 3 : maTrend === "Downtrend" ? 0 : 1,
+      macdTrend === "Bullish" ? 2 : 0,
+      bbPosition === "Below Lower" ? 2 : bbPosition === "Above Upper" ? 0 : 1,
+      instFlow > 100 ? 2 : instFlow < -100 ? 0 : 1, // 法人買賣
+    ].reduce((a, b) => a + b, 0);
+
+    // 長線評分（1年以上）：著重趨勢穩定度、大盤偏差、權值穩定性
+    const longScore = [
+      maTrend !== "Downtrend" ? 2 : 0,
+      marketBias >= 0 ? 2 : marketBias < -1 ? 0 : 1,
+      stockWeight > 1 ? 2 : 1, // 權值股較穩定
+      marginBalance > 5000 ? 1 : 2, // 融資低風險較小
+    ].reduce((a, b) => a + b, 0);
+
+    const horizonRecommendations = [
+      {
+        horizon: lang === "zh" ? "短 (3-5 天)" : "Short (3-5d)",
+        action:
+          shortScore >= 7
+            ? lang === "zh"
+              ? "積極操作"
+              : "Active trade"
+            : shortScore >= 5
+              ? lang === "zh"
+                ? "波段操作"
+                : "Swing trade"
+              : shortScore >= 3
+                ? lang === "zh"
+                  ? "試單觀望"
+                  : "Trial entry"
+                : lang === "zh"
+                  ? "觀望/空手"
+                  : "Stay out",
+        rationale:
+          shortScore >= 7
+            ? lang === "zh"
+              ? `絕佳短波段：RSI ${rsi.toFixed(1)} 處於極值，K值 ${stochasticStatus.toLowerCase()}，當沖 ${dayTradeRate.toFixed(1)}% 流動性充足，可 3-5 天內操作波段。`
+              : `Ideal short swing: RSI ${rsi.toFixed(1)} at extremes, K ${stochasticStatus}, day-trade ${dayTradeRate.toFixed(1)}% provides liquidity. Good for 3-5d swing.`
+            : shortScore >= 5
+              ? lang === "zh"
+                ? `波段條件良好：${stochasticStatus === "Oversold" ? "超賣反彈機會" : "超買回調可能"}，當沖 ${dayTradeRate.toFixed(1)}%，適合輕倉試單。`
+                : `Decent swing setup: ${stochasticStatus === "Oversold" ? "Oversold bounce" : "Overbought pullback"} likely, day-trade ${dayTradeRate.toFixed(1)}%; light position trial recommended.`
+              : shortScore >= 3
+                ? lang === "zh"
+                  ? `短線條件一般：先以試單探路，RSI ${rsi.toFixed(1)} 待極值出現，關鍵支撐 / 壓力位置為進出點。`
+                  : `Weak short setup: trial entry only. Watch RSI ${rsi.toFixed(1)} for extremes; use key levels for entries/exits.`
+                : lang === "zh"
+                  ? "短線無方向：K值與價格不同步，當沖雜訊高，建議觀望。"
+                  : "No short-term direction: K-price divergence, high day-trade noise; recommend waiting.",
+      },
+      {
+        horizon: lang === "zh" ? "中 (約 30 天)" : "Mid (≈30d)",
+        action:
+          midScore >= 7
+            ? lang === "zh"
+              ? "積極佈局"
+              : "Aggressive position"
+            : midScore >= 5
+              ? lang === "zh"
+                ? "布局持有"
+                : "Build position"
+              : midScore >= 3
+                ? lang === "zh"
+                  ? "續抱觀望"
+                  : "Hold & watch"
+                : lang === "zh"
+                  ? "減碼/空手"
+                  : "Reduce/exit",
+        rationale:
+          midScore >= 7
+            ? lang === "zh"
+              ? `中線機會明確：${maTrend} + MACD ${macdTrend.toLowerCase()} + 布林${bbPosition.toLowerCase()}，法人 ${instFlow.toFixed(0)}M 支撐，適合 30 日持有。`
+              : `Clear mid setup: ${maTrend} + MACD ${macdTrend} + BB ${bbPosition}, institutional ${instFlow.toFixed(0)}M net buying; ~30d hold ideal.`
+            : midScore >= 5
+              ? lang === "zh"
+                ? `中線趨勢成形中：${maTrend}，${macdTrend === "Bullish" ? "MACD 走揚" : "MACD 未轉"}，可分批建立中線部位。`
+                : `Mid trend forming: ${maTrend}, ${macdTrend === "Bullish" ? "MACD rising" : "MACD flat"}; accumulate in tranches.`
+              : midScore >= 3
+                ? lang === "zh"
+                  ? `中線保守：均線 ${maTrend.toLowerCase()} 但 MACD 未確認，若已持有可續抱，新進場宜觀望。`
+                  : `Cautious mid: MAs ${maTrend} but MACD unclear. Hold if owning; new entries wait for confirmation.`
+                : lang === "zh"
+                  ? `中線看壞：${maTrend}，法人 ${instFlow.toFixed(0)}M ${instFlow < 0 ? "賣超" : "買超不足"}，建議減碼保護。`
+                  : `Bearish mid: ${maTrend}, institutional ${instFlow < 0 ? "net selling" : "weak buying"} ${instFlow.toFixed(0)}M; reduce position.`,
+      },
+      {
+        horizon: lang === "zh" ? "長 (一年以上)" : "Long (1y+)",
+        action:
+          longScore >= 7
+            ? lang === "zh"
+              ? "核心佈局"
+              : "Core position"
+            : longScore >= 5
+              ? lang === "zh"
+                ? "分批進場"
+                : "Accumulate"
+              : longScore >= 3
+                ? lang === "zh"
+                  ? "等待機會"
+                  : "Wait for dip"
+                : lang === "zh"
+                  ? "規避/保留現金"
+                  : "Avoid/hold cash",
+        rationale:
+          longScore >= 7
+            ? lang === "zh"
+              ? `長線布局基礎紮實：${maTrend}、市場偏差 ${marketBias.toFixed(1)}、權重 ${stockWeight.toFixed(1)}%、融資 ${marginBalance.toFixed(0)}M 健康。適合長期持有。`
+              : `Strong long-term foundation: ${maTrend}, market bias ${marketBias.toFixed(1)}, weight ${stockWeight.toFixed(1)}%, margin ${marginBalance.toFixed(0)}M stable. Suitable for long hold.`
+            : longScore >= 5
+              ? lang === "zh"
+                ? `長線可布局：${maTrend} 且市場支持度 ${marketBias.toFixed(1)}，建議分批進場降成本，3-6 月觀察。`
+                : `OK for long: ${maTrend} with market bias ${marketBias.toFixed(1)}. Accumulate in tranches; review in 3-6mo.`
+              : longScore >= 3
+                ? lang === "zh"
+                  ? `長線待觀：趨勢${maTrend === "Downtrend" ? "下跌中" : "未明"}，宜等待更好進場點或放量突破訊號。`
+                  : `Long-term wait: trend ${maTrend === "Downtrend" ? "declining" : "unclear"}; wait for better entry or volume breakout.`
+                : lang === "zh"
+                  ? `長線規避：${maTrend} 且融資 ${marginBalance.toFixed(0)}M 偏高風險，保留現金等待更安全標的。`
+                  : `Long-term avoid: ${maTrend} with elevated margin ${marginBalance.toFixed(0)}M; hold cash for safer picks.`,
+      },
+    ];
+
+    return horizonRecommendations;
+  };
+
+  const horizonRecommendations = buildHorizonRecommendation();
+
   // Enhanced strategy details with clear reasoning
   const getStrategyDetails = () => {
     const baseTarget = currentPrice * 1.08;
@@ -526,6 +666,7 @@ export const getAISuggestion = async (
     },
     marketBias,
     strategies,
+    horizonRecommendations,
     concise: {
       decision: action,
       rationale: conciseRationale,

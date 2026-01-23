@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getAISuggestion } from "../services/aiAnalysis";
 import { useLanguage } from "../context/LanguageContext";
@@ -12,43 +12,31 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
   const [technicalData, setTechnicalData] = useState(null);
   const [ai, setAi] = useState(null);
 
-  // Fetch technical indicators
+  // Auto-refresh technical indicators and AI suggestion
   useEffect(() => {
-    if (!stock?.id) return;
-
-    const fetchData = async () => {
-      try {
-        const data = await fetchTechnicalIndicators(stock.id, "3mo", "1d");
-        if (data?.indicators) {
-          setTechnicalData(data.indicators);
-        }
-      } catch (err) {
-        console.error("Error fetching technical indicators:", err);
-      }
-    };
-
-    fetchData();
-  }, [stock?.id]);
-
-  // Fetch AI suggestion (now async)
-  useEffect(() => {
-    if (!stock) return;
+    if (!stock?.id) return undefined;
 
     let isMounted = true;
 
-    const fetchAI = async () => {
+    const refresh = async () => {
       try {
+        const data = await fetchTechnicalIndicators(stock.id, "3mo", "1d");
+        const indicators = data?.indicators || null;
+        if (isMounted) {
+          setTechnicalData(indicators);
+        }
+
         const suggestion = await getAISuggestion(
           stock,
           lang,
-          technicalData,
+          indicators,
           marketContext,
         );
         if (isMounted) {
           setAi(suggestion);
         }
       } catch (err) {
-        console.error("Error fetching AI suggestion:", err);
+        console.error("Error refreshing AI suggestion:", err);
         if (isMounted) {
           setAi({
             action: t("actions.neutral"),
@@ -60,6 +48,7 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
               rationale: "AI analysis failed. Please try again.",
               referenceData: [],
             },
+            horizonRecommendations: [],
             indicators: {},
             institutional: {
               investors: "N/A",
@@ -85,12 +74,15 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
       }
     };
 
-    fetchAI();
+    // Initial load
+    refresh();
+    const interval = setInterval(refresh, 45000);
 
     return () => {
       isMounted = false;
+      clearInterval(interval);
     };
-  }, [stock, lang, technicalData, marketContext, t]);
+  }, [stock, lang, marketContext, t]);
 
   // Lock body scroll when modal is open
   useEffect(() => {

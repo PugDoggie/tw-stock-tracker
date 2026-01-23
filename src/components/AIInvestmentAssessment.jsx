@@ -13,6 +13,7 @@ const AIInvestmentAssessment = ({ ai }) => {
   const references = ai.concise?.referenceData || [];
   const rationale =
     ai.concise?.rationale || ai.detailedReason || ai.reason || "";
+  const horizons = ai.horizonRecommendations || [];
 
   const getActionColor = () => {
     const action = ai.action || "";
@@ -89,6 +90,33 @@ const AIInvestmentAssessment = ({ ai }) => {
           ))}
         </div>
       </div>
+
+      {/* Horizon Recommendations */}
+      {horizons.length > 0 && (
+        <div className="bg-slate-900/60 rounded-2xl border border-white/10 p-5 md:p-7 space-y-4">
+          <p className="text-slate-400 text-[9px] md:text-[10px] uppercase font-black tracking-[0.15em]">
+            {t("horizonRecommendations")}
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {horizons.map((h) => (
+              <div
+                key={h.horizon}
+                className="p-4 md:p-5 rounded-xl border border-white/10 bg-slate-800/60 space-y-2"
+              >
+                <p className="text-slate-400 text-[10px] md:text-xs font-semibold">
+                  {h.horizon}
+                </p>
+                <p className="text-white text-base md:text-lg font-black">
+                  {h.action}
+                </p>
+                <p className="text-slate-300 text-xs md:text-sm leading-relaxed">
+                  {h.rationale}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

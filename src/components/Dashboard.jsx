@@ -103,6 +103,15 @@ const Dashboard = () => {
 
         const data = await fetchLiveStockData(idsToRefresh);
 
+        // Compute daily high-volume leaders (top 20 by volume)
+        const volumeLeaders = new Set(
+          [...data]
+            .filter((s) => Number.isFinite(s.volume))
+            .sort((a, b) => (b.volume || 0) - (a.volume || 0))
+            .slice(0, 20)
+            .map((s) => s.id),
+        );
+
         // Enrich missing metadata via refdata (fills Chinese names/market)
         const missingMetaIds = data
           .filter((s) => !stockMeta.find((m) => m.id === s.id))
@@ -132,8 +141,11 @@ const Dashboard = () => {
               const meta = stockMeta.find((m) => m.id === s.id);
               const ref = refdataMap.get(s.id);
               const apiName = s.name || s.id;
+              const isVolumeLeader = volumeLeaders.has(s.id);
+
               existingMap.set(s.id, {
                 ...s,
+                isVolumeLeader,
                 name_zh: meta?.name_zh || ref?.name_zh || apiName,
                 name_en: meta?.name_en || ref?.name_en || apiName,
                 industry_zh:
@@ -149,7 +161,8 @@ const Dashboard = () => {
                     ? "TWO"
                     : "TW Listed"),
                 growthScore:
-                  meta?.growthScore || (Math.abs(s.change) > 2.5 ? 96 : 65),
+                  meta?.growthScore ||
+                  (isVolumeLeader ? 92 : Math.abs(s.change) > 2.5 ? 96 : 65),
               });
             });
             return Array.from(existingMap.values());

@@ -6,13 +6,32 @@
 export const getMarketStatus = () => {
   const now = new Date();
 
-  // 轉換為台灣時間 (UTC+8)
-  const twTime = new Date(
-    now.toLocaleString("en-US", { timeZone: "Asia/Taipei" }),
+  // Avoid locale string reparse issues by using Intl parts directly
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Taipei",
+      hour12: false,
+      hour: "numeric",
+      minute: "numeric",
+      weekday: "short",
+    })
+      .formatToParts(now)
+      .map((p) => [p.type, p.value]),
   );
-  const hours = twTime.getHours();
-  const minutes = twTime.getMinutes();
-  const day = twTime.getDay(); // 0 = Sunday, 6 = Saturday
+
+  const hours = Number(parts.hour || 0);
+  const minutes = Number(parts.minute || 0);
+  const weekday = (parts.weekday || "").toLowerCase();
+  const dayMap = {
+    sun: 0,
+    mon: 1,
+    tue: 2,
+    wed: 3,
+    thu: 4,
+    fri: 5,
+    sat: 6,
+  };
+  const day = dayMap[weekday.slice(0, 3)] ?? new Date().getUTCDay();
 
   // 週末休市
   if (day === 0 || day === 6) {

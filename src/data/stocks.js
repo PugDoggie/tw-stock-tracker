@@ -357,5 +357,6 @@ export const searchableStocks = [...stocks, ...otcStocks];
 export const isGrowthStock = (stock) => {
   const score = stock.growthScore || 0;
   const change = Math.abs(stock.change || 0);
-  return score > 80 || change > 2.5;
+  const volumeLeader = Boolean(stock.isVolumeLeader);
+  return volumeLeader || score > 80 || change > 2.5;
 };
