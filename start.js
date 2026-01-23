@@ -15,12 +15,13 @@ console.log("🚀 Starting TW Stock Tracker (Production Mode)...");
 const mainApp = express();
 const PORT = process.env.PORT || 3000;
 
-// Mount proxy API routes at /api
-mainApp.use("/api", proxyApp);
-
-// Serve static frontend files from dist
+// Serve static frontend files from dist first (so "/" hits index.html)
 const distPath = join(__dirname, "dist");
 mainApp.use(express.static(distPath));
+
+// Mount proxy API routes (keep original /api paths defined inside proxy-server.js)
+// We do not add an extra prefix here to avoid /api/api double-prefix in production.
+mainApp.use(proxyApp);
 
 // SPA fallback - serve index.html for all non-API routes
 mainApp.use((req, res) => {

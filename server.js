@@ -3,6 +3,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import fs from "fs";
 import fetch from "node-fetch";
+import proxyApp from "./proxy-server.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -79,11 +80,14 @@ app.get("/api/refdata/all", async (req, res) => {
   res.json([]);
 });
 
-// Serve static frontend files
+// Serve static frontend files first
 const distPath = join(__dirname, "dist");
 app.use(express.static(distPath));
 
-// SPA fallback - serve index.html for all non-API routes
+// Mount proxy routes without adding extra prefix (avoid /api/api)
+app.use(proxyApp);
+
+// SPA fallback - serve index.html for all unmatched routes
 app.use((req, res) => {
   const indexPath = join(distPath, "index.html");
   if (fs.existsSync(indexPath)) {
