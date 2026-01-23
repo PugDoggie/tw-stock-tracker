@@ -1,27 +1,23 @@
 import express from "express";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import path from "path";
 import fs from "fs";
+import proxyApp from "./proxy-server.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-// Import proxy server
-import proxyApp from "./proxy-server.js";
 
 console.log("🚀 Starting TW Stock Tracker (Production Mode)...");
 
 const mainApp = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static frontend files from dist first (so "/" hits index.html)
+// Serve static frontend files first (so "/" hits index.html)
 const distPath = join(__dirname, "dist");
 mainApp.use(express.static(distPath));
 
-// Mount proxy API routes (keep original /api paths defined inside proxy-server.js)
-// We do not add an extra prefix here to avoid /api/api double-prefix in production.
-mainApp.use(proxyApp);
+// Mount proxy API routes under /api to avoid clobbering SPA root
+mainApp.use("/api", proxyApp);
 
 // SPA fallback - serve index.html for all non-API routes
 mainApp.use((req, res) => {
