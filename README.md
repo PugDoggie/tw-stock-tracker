@@ -5,7 +5,8 @@ A modern React + Vite application for tracking Taiwan stock market prices with r
 ## 🌟 Key Features
 
 ✅ **Real-Time Stock Prices** - Live data from TWSE with 3-second updates
-✅ **AI-Powered Analysis** - Smart investment recommendations
+✅ **AI-Powered Analysis** - Smart investment recommendations based on technical indicators
+✅ **Portfolio Management** - Track your holdings with cost basis and AI suggestions
 ✅ **K-Line Charts** - Technical analysis with lightweight-charts
 ✅ **Responsive Design** - Works perfectly on desktop, tablet, mobile
 ✅ **Multi-Language** - English and Traditional Chinese support
@@ -37,8 +38,7 @@ Open http://localhost:5173
 ## 📚 Documentation
 
 - **[QUICK_START.md](QUICK_START.md)** - 2-step setup guide
-- **[REAL_TIME_SETUP_CHECKLIST.md](REAL_TIME_SETUP_CHECKLIST.md)** - Verification checklist
-- **[REAL_TIME_DATA_GUIDE.md](REAL_TIME_DATA_GUIDE.md)** - Comprehensive guide
+- **[PORTFOLIO_FEATURE.md](PORTFOLIO_FEATURE.md)** - Portfolio management & AI recommendations
 - **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** - Technical details
 - **[VERIFICATION_REPORT.md](VERIFICATION_REPORT.md)** - Final verification
 

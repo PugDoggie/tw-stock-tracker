@@ -674,3 +674,143 @@ export const getAISuggestion = async (
     },
   };
 };
+
+/**
+ * AI库存分析 - 针对持有成本的加码/卖出建议
+ * @param {object} stock - 股票数据
+ * @param {object} position - 持仓数据 { costPrice, quantity }
+ * @param {object} indicators - 技术指标（可选）
+ * @param {string} lang - 语言
+ */
+export const getPortfolioAISuggestion = async (
+  stock,
+  position,
+  lang = "zh",
+  indicators = null,
+) => {
+  const t = translations[lang] || translations["zh"];
+
+  if (!position) {
+    return {
+      action: "unknown",
+      reasoning: "No position data",
+    };
+  }
+
+  const currentPrice = parseFloat(stock.price) || 0;
+  const costPrice = parseFloat(position.costPrice) || 0;
+  const gain = ((currentPrice - costPrice) / costPrice) * 100;
+  const gainValue = (currentPrice - costPrice) * position.quantity;
+
+  // 获取基础建议
+  const baseAI = await getAISuggestion(stock, lang, indicators);
+
+  // 库存成本分析
+  const priceToTarget = baseAI.strategies?.aggressive?.targetPrice
+    ? ((parseFloat(baseAI.strategies.aggressive.targetPrice) - currentPrice) /
+        currentPrice) *
+      100
+    : 0;
+  const priceToStopLoss = baseAI.strategies?.aggressive?.stopLoss
+    ? ((currentPrice - parseFloat(baseAI.strategies.aggressive.stopLoss)) /
+        currentPrice) *
+      100
+    : 0;
+
+  // 库存特定逻辑
+  let portfolioAction = "hold";
+  let confidence = baseAI.confidence || 50;
+  let reasoning = "";
+
+  const rsi = parseFloat(baseAI.indicators?.rsi) || 50;
+  const bbPosition = baseAI.indicators?.bbPosition || "Inside";
+
+  // 规则1：已获利且在高位 -> 考虑减仓卖出
+  if (gain > 15 && rsi > 70) {
+    portfolioAction = "sell";
+    confidence = Math.min(85, confidence + 15);
+    reasoning =
+      lang === "zh"
+        ? `已獲利 ${gain.toFixed(2)}%，技術面超買（RSI ${rsi.toFixed(1)}）。建議減仓獲利，或全數出場。`
+        : `Gained ${gain.toFixed(2)}%, overbought technicals (RSI ${rsi.toFixed(1)}). Consider taking profits or exiting.`;
+  }
+  // 规则2：跌破成本价且超卖 -> 加码或止损
+  else if (gain < -5 && rsi < 30) {
+    const priceToBreakeven = ((costPrice - currentPrice) / currentPrice) * 100;
+
+    // 如果跌幅小于10%且基础建议是买入，可加码
+    if (
+      gain > -10 &&
+      (baseAI.action === "strongBuy" || baseAI.action === "buy")
+    ) {
+      portfolioAction = "addMore";
+      confidence = Math.min(90, baseAI.confidence + 20);
+      reasoning =
+        lang === "zh"
+          ? `下跌 ${Math.abs(gain).toFixed(2)}%，超賣訊號。技術面 RSI ${rsi.toFixed(1)} 具反彈潛力。建議加码，成本均價下降至 ${(costPrice * position.quantity + currentPrice * position.quantity * 0.5) / (position.quantity * 1.5)}.toFixed(2)。`
+          : `Down ${Math.abs(gain).toFixed(2)}%, oversold. RSI ${rsi.toFixed(1)} shows reversal potential. Consider adding. Average cost would be reduced.`;
+    } else {
+      // 跌幅大于10%或基础建议是卖出 -> 止损
+      portfolioAction = "stopLoss";
+      confidence = Math.min(75, baseAI.confidence);
+      reasoning =
+        lang === "zh"
+          ? `下跌 ${Math.abs(gain).toFixed(2)}%，已跌破成本價。建議止損停損，避免進一步虧損。`
+          : `Down ${Math.abs(gain).toFixed(2)}%, below cost price. Consider stop loss to prevent further losses.`;
+    }
+  }
+  // 规则3：小幅获利(5-15%)且趋势向上 -> 持有或加码
+  else if (gain >= 5 && gain <= 15 && baseAI.action === "strongBuy") {
+    portfolioAction = "addMore";
+    confidence = Math.min(85, baseAI.confidence);
+    reasoning =
+      lang === "zh"
+        ? `已獲利 ${gain.toFixed(2)}%，AI信號強烈看好。建議加码擴大獲利潛力，目標 ${baseAI.strategies?.aggressive?.targetPrice || "N/A"}。`
+        : `Gained ${gain.toFixed(2)}%, strong buy signal. Consider adding for greater profit potential to ${baseAI.strategies?.aggressive?.targetPrice || "N/A"}.`;
+  }
+  // 规则4：接近目标价 -> 卖出或减仓
+  else if (
+    priceToTarget < 5 &&
+    priceToTarget > 0 &&
+    baseAI.action !== "strongBuy"
+  ) {
+    portfolioAction = "takeProfits";
+    confidence = Math.min(80, baseAI.confidence);
+    reasoning =
+      lang === "zh"
+        ? `接近目標價 ${baseAI.strategies?.aggressive?.targetPrice}（還有 ${priceToTarget.toFixed(2)}% 空間）。建議獲利出場。`
+        : `Approaching target price ${baseAI.strategies?.aggressive?.targetPrice} (${priceToTarget.toFixed(2)}% left). Consider exiting at target.`;
+  }
+  // 规则5：接近止损价 -> 立即止损
+  else if (priceToStopLoss < 3 && baseAI.action !== "strongBuy") {
+    portfolioAction = "stopLoss";
+    confidence = 90;
+    reasoning =
+      lang === "zh"
+        ? `接近止損點 ${baseAI.strategies?.aggressive?.stopLoss}，風險加劇。建議立即止損。`
+        : `Approaching stop loss at ${baseAI.strategies?.aggressive?.stopLoss}. Risk elevated. Exit immediately.`;
+  }
+  // 默认：持有或继续观望
+  else {
+    portfolioAction = baseAI.action === "strongBuy" ? "hold" : "hold";
+    confidence = baseAI.confidence;
+    reasoning =
+      lang === "zh"
+        ? `成本${costPrice.toFixed(2)}，目前${gain >= 0 ? "獲利" : "虧損"} ${Math.abs(gain).toFixed(2)}%。繼續持有，監控技術面變化。`
+        : `Cost ${costPrice.toFixed(2)}, currently ${gain >= 0 ? "up" : "down"} ${Math.abs(gain).toFixed(2)}%. Hold and monitor.`;
+  }
+
+  return {
+    baseAction: baseAI.action,
+    portfolioAction, // sell, addMore, stopLoss, takeProfits, hold
+    confidence: Math.round(confidence),
+    reasoning,
+    costPrice,
+    currentPrice,
+    gain: gain.toFixed(2),
+    gainValue: gainValue.toFixed(2),
+    targetPrice: baseAI.strategies?.aggressive?.targetPrice,
+    stopLoss: baseAI.strategies?.aggressive?.stopLoss,
+    indicators: baseAI.indicators,
+  };
+};

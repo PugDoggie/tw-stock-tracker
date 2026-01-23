@@ -127,14 +127,17 @@ const StockCard = ({ stock, onClick }) => {
                   : "text-2xl md:text-3xl"
             }`}
           >
-            NT${stock.price}
+            NT$
+            {typeof stock.price === "number"
+              ? stock.price.toFixed(2)
+              : stock.price}
           </motion.p>
         </div>
         <div
           className={`text-right ${isUp ? "text-premium-success" : "text-premium-loss"}`}
         >
           <p className="text-lg md:text-2xl font-bold flex items-center justify-end gap-1.5 leading-tight">
-            {isUp ? "▲" : "▼"} {Math.abs(stock.change)}%
+            {isUp ? "▲" : "▼"} {Math.abs(stock.change).toFixed(2)}%
           </p>
         </div>
       </div>

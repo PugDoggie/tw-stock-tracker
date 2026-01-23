@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getAISuggestion } from "../services/aiAnalysis";
 import { useLanguage } from "../context/LanguageContext";
+import { usePortfolio } from "../context/PortfolioContext";
 import { fetchTechnicalIndicators } from "../services/technicalIndicatorsService";
 import TechnicalAnalysisDashboard from "./TechnicalAnalysisDashboard";
 import AIInvestmentAssessment from "./AIInvestmentAssessment";
@@ -9,14 +10,26 @@ import KLineChart from "./KLineChart";
 
 const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
   const { t, lang } = useLanguage();
+  const { addPosition, getPosition } = usePortfolio();
   const [technicalData, setTechnicalData] = useState(null);
   const [ai, setAi] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [costPrice, setCostPrice] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [addError, setAddError] = useState("");
+  const [isInWallet, setIsInWallet] = useState(false);
 
   // Auto-refresh technical indicators and AI suggestion
   useEffect(() => {
     if (!stock?.id) return undefined;
 
     let isMounted = true;
+
+    // 检查是否已在钱包中
+    const position = getPosition(stock.id);
+    if (isMounted) {
+      setIsInWallet(!!position);
+    }
 
     const refresh = async () => {
       try {
@@ -108,6 +121,39 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [stock, onClose]);
 
+  // 处理添加到钱包
+  const handleAddToWallet = () => {
+    const cost = parseFloat(costPrice);
+    const qty = parseInt(quantity);
+
+    if (!cost || cost <= 0) {
+      setAddError(
+        lang === "zh" ? "成本價必須大於0" : "Cost price must be greater than 0",
+      );
+      return;
+    }
+
+    if (!qty || qty <= 0) {
+      setAddError(
+        lang === "zh" ? "數量必須大於0" : "Quantity must be greater than 0",
+      );
+      return;
+    }
+
+    addPosition({
+      stockId: stock.id,
+      name: lang === "zh" ? stock.name_zh : stock.name_en,
+      costPrice: cost,
+      quantity: qty,
+    });
+
+    setIsInWallet(true);
+    setShowAddForm(false);
+    setCostPrice("");
+    setQuantity("");
+    setAddError("");
+  };
+
   if (!stock) return null;
 
   const isUp = stock.change >= 0;
@@ -172,16 +218,143 @@ const StockDetailModal = ({ stock, onClose, marketContext = {} }) => {
                           : "text-3xl md:text-5xl lg:text-7xl"
                     }`}
                   >
-                    NT${stock.price}
+                    NT$
+                    {typeof stock.price === "number"
+                      ? stock.price.toFixed(2)
+                      : stock.price}
                   </span>
                   <span
                     className={`text-lg md:text-2xl lg:text-3xl font-black flex items-center gap-1 md:gap-2 ${isUp ? "text-premium-success" : "text-premium-loss"} bg-white/5 px-2 md:px-4 py-1 md:py-2 rounded-xl md:rounded-2xl border border-white/5`}
                   >
-                    {isUp ? "▲" : "▼"} {Math.abs(stock.change)}%
+                    {isUp ? "▲" : "▼"} {Math.abs(stock.change).toFixed(2)}%
                   </span>
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Add to Wallet Section */}
+          <div className="border-b border-white/5 bg-gradient-to-r from-slate-800/50 to-transparent p-6 md:p-8">
+            {!isInWallet && !showAddForm ? (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowAddForm(true)}
+                className="w-full md:w-auto px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-premium-accent to-cyan-400 hover:from-premium-accent/90 hover:to-cyan-400/90 text-slate-900 font-black rounded-xl md:rounded-2xl transition-all shadow-lg shadow-premium-accent/30 text-sm md:text-base"
+              >
+                💼 {lang === "zh" ? "加入我的錢包" : "Add to My Wallet"}
+              </motion.button>
+            ) : isInWallet ? (
+              <div className="flex items-center gap-3 text-green-400">
+                <span className="text-2xl">✓</span>
+                <div>
+                  <p className="font-bold">
+                    {lang === "zh"
+                      ? "已在你的錢包中"
+                      : "Already in your wallet"}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {lang === "zh"
+                      ? "在錢包中查看詳細資訊"
+                      : "View details in your wallet"}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {showAddForm && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-6 pt-6 border-t border-slate-700/50 space-y-4"
+              >
+                <h4 className="font-bold text-white">
+                  {lang === "zh"
+                    ? "輸入持股資訊"
+                    : "Enter Your Position Details"}
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-2">
+                      {lang === "zh" ? "成本價 (NT$)" : "Cost Price (NT$)"}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder={
+                        lang === "zh" ? "輸入購入價格" : "Enter cost price"
+                      }
+                      value={costPrice}
+                      onChange={(e) => {
+                        setCostPrice(e.target.value);
+                        setAddError("");
+                      }}
+                      className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-premium-accent text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-2">
+                      {lang === "zh" ? "持有數量" : "Quantity"}
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      placeholder={
+                        lang === "zh" ? "輸入持有數量" : "Enter quantity"
+                      }
+                      value={quantity}
+                      onChange={(e) => {
+                        setQuantity(e.target.value);
+                        setAddError("");
+                      }}
+                      className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-premium-accent text-sm"
+                    />
+                  </div>
+                </div>
+
+                {costPrice && quantity && (
+                  <div className="bg-slate-700/50 border border-slate-600/50 rounded-lg p-3">
+                    <p className="text-xs text-slate-400 mb-1">
+                      {lang === "zh" ? "總成本額" : "Total Cost"}
+                    </p>
+                    <p className="text-lg font-bold">
+                      NT$
+                      {(parseFloat(costPrice) * parseInt(quantity)).toFixed(0)}
+                    </p>
+                  </div>
+                )}
+
+                {addError && (
+                  <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-300 text-xs">
+                    {addError}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleAddToWallet}
+                    disabled={!costPrice || !quantity}
+                    className="flex-1 px-4 py-2 bg-green-500/20 text-green-300 border border-green-500/30 rounded-lg hover:bg-green-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                  >
+                    ✓ {lang === "zh" ? "確認加入" : "Add to Wallet"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddForm(false);
+                      setAddError("");
+                    }}
+                    className="flex-1 px-4 py-2 bg-slate-600 text-slate-200 border border-slate-500 rounded-lg hover:bg-slate-500 transition-colors text-sm font-medium"
+                  >
+                    ✕ {lang === "zh" ? "取消" : "Cancel"}
+                  </button>
+                </div>
+              </motion.div>
+            )}
           </div>
 
           {/* Body */}
