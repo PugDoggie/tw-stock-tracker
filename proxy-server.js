@@ -53,18 +53,22 @@ app.get("/api/twse", async (req, res) => {
   const { ex_ch } = req.query;
   if (!ex_ch) return res.status(400).json({ error: "Missing ex_ch param" });
   try {
-    const symbols = String(ex_ch)
-      .split("|")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    // 去重以避免重複 id 造成查詢過長
+    const symbols = Array.from(
+      new Set(
+        String(ex_ch)
+          .split("|")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    );
 
     if (symbols.length === 0) {
       return res.status(400).json({ error: "No valid symbols" });
     }
 
-    // TWSE endpoint occasionally drops connections when query is too long;
-    // chunk requests to improve reliability (<=50 symbols per request).
-    const chunkSize = 50;
+    // TWSE 對過長查詢容易斷線，縮小批次
+    const chunkSize = 20;
     const chunks = [];
     for (let i = 0; i < symbols.length; i += chunkSize) {
       chunks.push(symbols.slice(i, i + chunkSize));
@@ -75,21 +79,30 @@ app.get("/api/twse", async (req, res) => {
       const chunkParam = chunk.join("|");
       const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${encodeURIComponent(chunkParam)}&json=1&delay=0&_=${Date.now()}`;
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
       const response = await fetch(url, {
+        signal: controller.signal,
         headers: {
           Accept: "application/json",
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           Referer: "https://mis.twse.com.tw/stock/index.jsp",
           "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7",
-          Host: "mis.twse.com.tw",
         },
+      }).catch((err) => {
+        console.warn(`[Proxy TWSE] fetch error: ${err.message}`);
+        return null;
       });
 
-      if (!response.ok) {
-        return res
-          .status(502)
-          .json({ error: `TWSE upstream HTTP ${response.status}` });
+      clearTimeout(timeoutId);
+
+      if (!response || !response.ok) {
+        console.warn(
+          `[Proxy TWSE] upstream fail for chunk (${chunk.length}): ${response?.status || "no-response"}`,
+        );
+        continue; // 該批失敗就跳過，讓前端走 Yahoo fallback
       }
 
       const text = await response.text();
@@ -97,7 +110,8 @@ app.get("/api/twse", async (req, res) => {
       try {
         data = JSON.parse(text);
       } catch (err) {
-        return res.status(502).json({ error: "Invalid JSON from TWSE" });
+        console.warn("[Proxy TWSE] Invalid JSON from TWSE");
+        continue;
       }
 
       if (Array.isArray(data?.msgArray)) {
@@ -105,6 +119,7 @@ app.get("/api/twse", async (req, res) => {
       }
     }
 
+    // 若全部批次失敗，回傳空陣列讓前端走下一層 fallback
     res.json({ msgArray: results });
   } catch (err) {
     res.status(500).json({ error: err.message });

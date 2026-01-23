@@ -203,7 +203,7 @@ const fetchFromProxyServer = async (stockIds) => {
       );
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
     const response = await fetch(url, {
       method: "GET",
@@ -216,12 +216,17 @@ const fetchFromProxyServer = async (stockIds) => {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      if (isDev) console.warn(`[Proxy] HTTP ${response.status}`);
+      return [];
     }
 
-    const data = await response.json();
+    const data = await response.json().catch((err) => {
+      if (isDev) console.warn(`[Proxy] JSON parse error: ${err.message}`);
+      return null;
+    });
     if (!data?.msgArray || !Array.isArray(data.msgArray)) {
-      throw new Error("Invalid response format");
+      if (isDev) console.warn("[Proxy] Invalid response format");
+      return [];
     }
 
     const liveData = parseStockData(data.msgArray);
@@ -230,7 +235,8 @@ const fetchFromProxyServer = async (stockIds) => {
       return liveData;
     }
 
-    throw new Error("No valid data in response");
+    if (isDev) console.warn("[Proxy] No valid data in response");
+    return [];
   } catch (error) {
     if (isDev) console.warn(`[Proxy] ${error.message}`);
     return null;
@@ -652,7 +658,7 @@ export const fetchLiveStockData = async (stockIds) => {
     liveData = await fetchFromProxyServer(stockIds);
   }
 
-  // Strategy 4: Try direct TWSE API if proxy fails
+  // Strategy 4: Try direct TWSE API if proxy fails (skip if proxy returned empty array)
   if (!liveData || liveData.length === 0) {
     if (isDev) console.log(`[Fallback] Trying Direct TWSE API...`);
     liveData = await fetchFromTWSEDirect(stockIds);
