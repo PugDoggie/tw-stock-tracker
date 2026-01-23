@@ -16,8 +16,8 @@ const PORT = process.env.PORT || 3000;
 const distPath = join(__dirname, "dist");
 mainApp.use(express.static(distPath));
 
-// Mount proxy API routes under /api to avoid clobbering SPA root
-mainApp.use("/api", proxyApp);
+// Mount proxy API routes (proxy-server.js already defines /api/* routes)
+mainApp.use(proxyApp);
 
 // SPA fallback - serve index.html for all non-API routes
 mainApp.use((req, res) => {
