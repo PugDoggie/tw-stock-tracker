@@ -2,7 +2,6 @@ import express from "express";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import fs from "fs";
-import fetch from "node-fetch";
 import proxyApp from "./proxy-server.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,14 +11,6 @@ console.log("🚀 Starting TW Stock Tracker (Combined Server)...");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Simple in-memory cache for refdata
-const refdataCache = {
-  twse: null,
-  tpex: null,
-  timestamp: 0,
-  ttl: 60 * 60 * 1000,
-};
 
 // CORS middleware
 app.use((req, res, next) => {
@@ -33,59 +24,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// API Routes (proxy endpoints)
+// API health check remains here; real API routes come from proxyApp below
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Placeholder for proxy endpoints
-app.get("/api/twse", async (req, res) => {
-  try {
-    const query = req.query.ex_ch || "tse_0050.tw";
-    const url = `https://mis.twse.com.tw/stock/api/v1/Indices?query=${encodeURIComponent(
-      query,
-    )}`;
-    const response = await fetch(url);
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/api/yahoo/quote", async (req, res) => {
-  try {
-    const symbols = req.query.symbols || "";
-    const symbolArray = symbols.split(",").map((s) => s.trim());
-    res.json({ symbols: symbolArray, source: "placeholder" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/api/yahoo/search", async (req, res) => {
-  try {
-    const q = req.query.q || "";
-    res.json({ query: q, results: [] });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/api/refdata/search", async (req, res) => {
-  res.json({ id: req.query.stockId, data: null });
-});
-
-app.get("/api/refdata/all", async (req, res) => {
-  res.json([]);
-});
-
-// Serve static frontend files first
-const distPath = join(__dirname, "dist");
-app.use(express.static(distPath));
-
 // Mount proxy routes without adding extra prefix (avoid /api/api)
 app.use(proxyApp);
+
+// Serve static frontend files
+const distPath = join(__dirname, "dist");
+app.use(express.static(distPath));
 
 // SPA fallback - serve index.html for all unmatched routes
 app.use((req, res) => {
