@@ -15,11 +15,34 @@ export const getAISuggestion = async (
 ) => {
   const t = translations[lang] || translations["zh"];
 
-  // Deterministic seed for simulation
-  const seed = stock.id.split("").reduce((a, b) => {
-    a = (a << 5) - a + b.charCodeAt(0);
-    return a & a;
-  }, 0);
+  // 硬性要求真實技術指標；無指標就回傳觀望並標記資料不足
+  if (!indicators) {
+    const reason =
+      lang === "zh"
+        ? "缺少技術指標資料，暫無法給出建議"
+        : "Insufficient technical indicators; unable to provide advice.";
+    return {
+      action: t.actions.neutral,
+      confidence: 40,
+      reason,
+      detailedReason: reason,
+      concise: {
+        decision: t.actions.neutral,
+        rationale: reason,
+        referenceData: [],
+      },
+      indicators: {
+        note: "missing",
+      },
+      strategies: {
+        aggressive: {
+          targetPrice: null,
+          stopLoss: null,
+        },
+      },
+      horizonRecommendations: [],
+    };
+  }
 
   const currentPrice = parseFloat(stock.price) || 0;
   const change = parseFloat(stock.change) || 0;
@@ -43,14 +66,45 @@ export const getAISuggestion = async (
     );
   }
 
-  // Use actual technical indicators if provided, otherwise use mock data
-  const rsi = indicators?.rsi
-    ? parseFloat(indicators.rsi)
-    : 45 + (Math.abs(seed) % 40);
-  const macdTrend = indicators?.macd?.trend || (isUp ? "Bullish" : "Bearish");
-  const maTrend = indicators?.movingAverages?.trend || "Neutral";
-  const bbPosition = indicators?.bollingerBands?.position || "Inside Bands";
-  const stochasticStatus = indicators?.stochastic?.status || "Neutral";
+  // 僅使用傳入的真實技術指標，不再隨機模擬
+  const rsi = parseFloat(indicators?.rsi);
+  const macdTrend = indicators?.macd?.trend;
+  const maTrend = indicators?.movingAverages?.trend;
+  const bbPosition = indicators?.bollingerBands?.position;
+  const stochasticStatus = indicators?.stochastic?.status;
+
+  // 若部分欄位缺失，回傳觀望並說明缺欄位
+  const missingFields = [];
+  if (!Number.isFinite(rsi)) missingFields.push("RSI");
+  if (!macdTrend) missingFields.push("MACD");
+  if (!maTrend) missingFields.push("MA");
+  if (!bbPosition) missingFields.push("Bollinger");
+  if (!stochasticStatus) missingFields.push("Stochastic");
+  if (missingFields.length > 0) {
+    const msg =
+      lang === "zh"
+        ? `技術指標缺少: ${missingFields.join(", ")}`
+        : `Missing indicators: ${missingFields.join(", ")}`;
+    return {
+      action: t.actions.neutral,
+      confidence: 40,
+      reason: msg,
+      detailedReason: msg,
+      concise: {
+        decision: t.actions.neutral,
+        rationale: msg,
+        referenceData: [],
+      },
+      indicators,
+      strategies: {
+        aggressive: {
+          targetPrice: null,
+          stopLoss: null,
+        },
+      },
+      horizonRecommendations: [],
+    };
+  }
 
   // Calculate confidence based on indicator alignment
   const alignedSignals = [
@@ -116,20 +170,16 @@ export const getAISuggestion = async (
   const marketBias = calcMarketBias(stockWeight);
   const adjustedWinRate = Math.max(40, Math.min(95, winRate + marketBias * 5));
 
-  // Professional Indicators Simulation with data-driven adjustments
-  const instFlow =
-    (seed % 800) + change * 150 + (rsi < 30 ? 200 : rsi > 70 ? -200 : 0);
-  const marginBalance =
-    Math.abs(seed % 15000) +
-    change * 100 +
-    (stochasticStatus === "Overbought" ? -1000 : 1000);
-  const dayTradeRate = Math.max(
-    10,
-    Math.min(
-      40,
-      25 + Math.abs(seed % 35) + Math.abs(change) * 3 - alignedSignals * 2,
-    ),
-  );
+  // 籌碼／當沖數據：若外部未提供，使用安全缺省值
+  const instFlow = Number.isFinite(stock.institutionalNet)
+    ? stock.institutionalNet
+    : 0;
+  const marginBalance = Number.isFinite(stock.marginBalance)
+    ? stock.marginBalance
+    : 0;
+  const dayTradeRate = Number.isFinite(stock.dayTradeRate)
+    ? stock.dayTradeRate
+    : 0;
 
   // Data-driven Narratives based on actual indicators
   const getNarrative = (actionType) => {
@@ -338,7 +388,7 @@ export const getAISuggestion = async (
     return value.toLocaleString();
   };
 
-  const volumeValue = stock.volume || (seed % 50000) + 10000;
+  const volumeValue = Number.isFinite(stock.volume) ? stock.volume : 0;
   const investorsText = `${instFlow > 0 ? "+" : ""}${instFlow.toFixed(0)}M`;
   const marginText = `${marginBalance.toFixed(0)}M`;
 
@@ -768,8 +818,9 @@ export const getPortfolioAISuggestion = async (
         ? `已獲利 ${gain.toFixed(2)}%，AI信號強烈看好。建議加码擴大獲利潛力，目標 ${baseAI.strategies?.aggressive?.targetPrice || "N/A"}。`
         : `Gained ${gain.toFixed(2)}%, strong buy signal. Consider adding for greater profit potential to ${baseAI.strategies?.aggressive?.targetPrice || "N/A"}.`;
   }
-  // 规则4：接近目标价 -> 卖出或减仓
+  // 规则4：接近目标价 -> 卖出或减仓（僅在已有浮盈時才提示獲利）
   else if (
+    gain >= 0 &&
     priceToTarget < 5 &&
     priceToTarget > 0 &&
     baseAI.action !== "strongBuy"
@@ -789,6 +840,19 @@ export const getPortfolioAISuggestion = async (
       lang === "zh"
         ? `接近止損點 ${baseAI.strategies?.aggressive?.stopLoss}，風險加劇。建議立即止損。`
         : `Approaching stop loss at ${baseAI.strategies?.aggressive?.stopLoss}. Risk elevated. Exit immediately.`;
+  }
+  // 规则6：整體偏空且帳上虧損 -> 建議停損出場
+  else if (
+    gain < 0 &&
+    baseAI.action !== t.actions.strongBuy &&
+    baseAI.action !== t.actions.buy
+  ) {
+    portfolioAction = "stopLoss";
+    confidence = Math.min(85, (baseAI.confidence || 60) + 10);
+    reasoning =
+      lang === "zh"
+        ? `目前虧損 ${Math.abs(gain).toFixed(2)}%，AI 判定不適合續抱。為避免持續下跌，建議嚴格停損出場，保留資金等待更佳機會。`
+        : `Currently down ${Math.abs(gain).toFixed(2)}% and AI bias is not bullish. To avoid further drawdown, cut the position and preserve capital for better setups.`;
   }
   // 默认：持有或继续观望
   else {

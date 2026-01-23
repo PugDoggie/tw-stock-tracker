@@ -13,6 +13,7 @@ export const usePortfolio = () => {
 export const PortfolioProvider = ({ children }) => {
   const [positions, setPositions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [hydrated, setHydrated] = useState(false); // prevent overwriting saved data before hydration
 
   // Initialize from localStorage
   useEffect(() => {
@@ -24,12 +25,14 @@ export const PortfolioProvider = ({ children }) => {
         console.error("Failed to load portfolio:", err);
       }
     }
+    setHydrated(true);
   }, []);
 
-  // Save to localStorage
+  // Save to localStorage (after hydration)
   useEffect(() => {
+    if (!hydrated) return;
     localStorage.setItem("tw-stock-portfolio", JSON.stringify(positions));
-  }, [positions]);
+  }, [positions, hydrated]);
 
   /**
    * 添加或更新持仓

@@ -14,13 +14,26 @@ function App() {
   const [liveStocks, setLiveStocks] = useState([]);
   const [isWalletOpen, setIsWalletOpen] = useState(false);
 
-  // 获取实时股票数据供WalletButton使用
+  // 获取实时股票数据供WalletButton/WalletPage使用
   useEffect(() => {
-    const initialStockIds = [...stocks, ...otcStocks].map((s) => s.id);
-
     const fetchData = async () => {
       try {
-        const data = await fetchLiveStockData(initialStockIds);
+        // 動態合併：預設清單 + 本地錢包持倉（支援任意代碼，如 2402）
+        const baseIds = [...stocks, ...otcStocks].map((s) => s.id);
+        let walletIds = [];
+        try {
+          const saved = localStorage.getItem("tw-stock-portfolio");
+          if (saved) {
+            walletIds = JSON.parse(saved)
+              .map((p) => p.stockId)
+              .filter(Boolean);
+          }
+        } catch (e) {
+          console.warn("Failed to read wallet ids:", e);
+        }
+
+        const uniqueIds = Array.from(new Set([...baseIds, ...walletIds]));
+        const data = await fetchLiveStockData(uniqueIds);
         setLiveStocks(data);
       } catch (err) {
         console.error("Failed to fetch live stocks:", err);

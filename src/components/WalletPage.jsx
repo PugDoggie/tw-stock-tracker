@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { usePortfolio } from "../context/PortfolioContext";
 import { useLanguage } from "../context/LanguageContext";
 import { getPortfolioAISuggestion } from "../services/aiAnalysis";
+import { fetchTechnicalIndicators } from "../services/technicalIndicatorsService";
 
 const WalletPage = ({ onClose, liveStocks = [] }) => {
   const { t, lang } = useLanguage();
@@ -21,7 +22,7 @@ const WalletPage = ({ onClose, liveStocks = [] }) => {
   console.log("WalletPage - liveStocks:", liveStocks);
   console.log("WalletPage - stats:", stats);
 
-  // 获取库存的AI建议
+  // 获取库存的AI建议（含技術指標）
   useEffect(() => {
     if (stats.positions.length === 0) return;
 
@@ -33,10 +34,19 @@ const WalletPage = ({ onClose, liveStocks = [] }) => {
         try {
           const stock = liveStocks.find((s) => s.id === pos.stockId);
           if (stock) {
+            // 先取得技術指標
+            const techData = await fetchTechnicalIndicators(
+              pos.stockId,
+              "3mo",
+              "1d",
+            );
+            const indicators = techData?.indicators || null;
+
             const suggestion = await getPortfolioAISuggestion(
               stock,
               { costPrice: pos.costPrice, quantity: pos.quantity },
               lang,
+              indicators,
             );
             suggestions[pos.stockId] = suggestion;
           }
@@ -50,7 +60,7 @@ const WalletPage = ({ onClose, liveStocks = [] }) => {
     };
 
     fetchAISuggestions();
-    const interval = setInterval(fetchAISuggestions, 30000); // 每30秒更新一次
+    const interval = setInterval(fetchAISuggestions, 60000); // 每60秒更新一次
     return () => clearInterval(interval);
   }, [stats.positions, liveStocks, lang]);
 
